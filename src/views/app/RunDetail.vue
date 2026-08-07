@@ -78,6 +78,9 @@ const terminalStatuses = ['completed', 'failed', 'cancelled']
 
 export default {
   components: { PageState },
+  props: {
+    pollInterval: { type: Number, default: 2500 }
+  },
   data() {
     return {
       loading: true,
@@ -160,7 +163,7 @@ export default {
           this.stopPolling()
           this.$message.error(error.message || '刷新运行状态失败。')
         }
-      }, 2500)
+      }, this.pollInterval)
     },
     stopPolling() {
       if (this.timer) {

@@ -88,6 +88,9 @@ const syncLabels = { queued: '排队中', running: '运行中', completed: '已�
 
 export default {
   components: { PageState },
+  props: {
+    pollInterval: { type: Number, default: 2000 }
+  },
   data() {
     return {
       loading: true,
@@ -207,7 +210,7 @@ export default {
           this.stopSyncPolling()
           this.$message.error(error.message || '查询同步任务失败。')
         }
-      }, 2000)
+      }, this.pollInterval)
     },
     stopSyncPolling() {
       if (this.syncTimer) {

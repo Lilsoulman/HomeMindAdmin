@@ -238,6 +238,9 @@ export default {
     }
   },
   computed: {
+    homeId() {
+      return this.$store.state.auth.tenantId
+    },
     canWrite() {
       return hasPermission(this.$store.state.auth.role, 'family.write')
     },
@@ -272,9 +275,6 @@ export default {
     this.pageAlive = false
   },
   methods: {
-    homeId() {
-      return this.$store.state.auth.tenantId
-    },
     handleTabClick(tab) {
       if (tab.name === 'knowledge' && !this.knowledge.loaded) this.loadKnowledge()
       if (tab.name === 'decisions' && !this.decisions.loaded) this.loadDecisions()

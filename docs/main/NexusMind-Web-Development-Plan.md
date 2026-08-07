@@ -33,13 +33,13 @@
 | 家庭协同与个人偏好 | 已完成 | 家庭成员（创建/编辑/终态更正原因+二次确认）、家庭知识（7 档分类、来源成员、冲突策略、删除二次确认）、决策记录（游标分页、仅追加）与收藏（分类/可见性筛选、增删改二次确认、private 过滤）已交付；角色禁用（viewer 只读）、409 刷新、403/422/retry 状态齐备；不发送或切换 tenant ID；`npm run lint`、`npm run test:unit`（24 项）与 `npm run build` 通过 |
 | 家庭级 Connector 控制台 | 已完成 | Provider 目录、实例列表/创建（Vault 未启用时 503 可读消息）、测试/发现/同步（202→轮询至终态，离开页停止）、成员授权（1-32 范围，保存即替换）、我的连接（脱敏状态）已交付；表单仅接受白名单字段，绝不回显 URL/Token/`credentialRef`/供应商 ID；`npm run lint`、`npm run test:unit`（32 项）与 `npm run build` 通过 |
 | 自动化、专家与 Run | 已完成 | 自动化规则（列表/新建/编辑/启停，审批策略说明与影响预览、更新带 RowVersion、409 刷新）、专家目录与详情（版本/Persona/Methodology/ToolPolicy 摘要，PromptTemplate 不消费不展示）、Run 详情（公开阶段映射、事件时间线仅可读消息、Action 确认带幂等键、终态停轮询、离开页停止）已交付；动态详情含 RunId 时提供运行入口；`npm run lint`、`npm run test:unit`（42 项）与 `npm run build` 通过 |
+| 质量与可访问性 | 已完成 | 权限守卫角色×权限矩阵、确认幂等（页面级新键）、同步/Run 终态轮询（终态/离开页/失败停止）、页面 loading/empty/error+retry 组件测试齐备（`npm run test:unit` 149 项）；键盘可达性（专家列表可聚焦+Enter、focus-visible 样式）、窄屏断点（授权矩阵 900px 单列）已补；静态扫描确认源码与构建产物无敏感字段硬编码、无第三方直连、PromptTemplate 未被前端消费；修复 `this.homeId` 方法引用当值使用的真实缺陷；工程基线补充 `@vue/vue2-jest` 与 jest preset 支持组件测试 |
 
 ## 3. 下一步
 
 | 优先级 | 交付 | 前置条件 | 最小验收 |
 | --- | --- | --- | --- |
-| P0 | 质量与可访问性 | P0--P1 可运行 | API 映射、权限守卫、确认幂等、同步终态和页面状态的单元测试；键盘操作、焦点和窄屏检查；静态扫描无敏感字段或第三方直连 |
-| P1 | 个人 Connector/OAuth | 产品决策、数据迁移、OAuth callback/PKCE/撤销及安全验收全部完成 | 仅本人可见和使用的个人实例；服务端处理 OAuth 令牌生命周期；前端仅显示脱敏连接状态。此前不得创建 UI 或推测 HTTP 接口 |
+| P0 | 个人 Connector/OAuth | 产品决策、数据迁移、OAuth callback/PKCE/撤销及安全验收全部完成 | 仅本人可见和使用的个人实例；服务端处理 OAuth 令牌生命周期；前端仅显示脱敏连接状态。此前不得创建 UI 或推测 HTTP 接口 |
 
 ## 4. 工程约束
 

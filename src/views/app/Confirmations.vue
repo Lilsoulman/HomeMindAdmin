@@ -162,6 +162,9 @@ export default {
         { value: 'cancelled', label: '已取消' }
       ]
     },
+    homeId() {
+      return this.$store.state.auth.tenantId
+    },
     // 仅 L1 + pending 视图允许批量勾选（同家庭未过期 pending 由服务端复核）
     batchEnabled() {
       return this.riskLevel === 'L1' && this.status === 'pending'
@@ -192,13 +195,9 @@ export default {
       }
     },
     async fetchItems() {
-      const homeId = this.homeId
-      const items = await listConfirmations({ homeId, riskLevel: this.riskLevel, status: this.status })
+      const items = await listConfirmations({ homeId: this.homeId, riskLevel: this.riskLevel, status: this.status })
       if (this.pageAlive) this.items = items
       return items
-    },
-    homeId() {
-      return this.$store.state.auth.tenantId
     },
     isSubmitting(id, action) {
       return this.submitting.has(id) && (action ? this.submitting.get(id) === action : true)

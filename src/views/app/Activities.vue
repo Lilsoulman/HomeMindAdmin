@@ -116,6 +116,9 @@ export default {
     }
   },
   computed: {
+    homeId() {
+      return this.$store.state.auth.tenantId
+    },
     hasMore() {
       return Boolean(this.cursor)
     },
@@ -160,9 +163,6 @@ export default {
       } finally {
         this.loadingMore = false
       }
-    },
-    homeId() {
-      return this.$store.state.auth.tenantId
     },
     canUndo(item) {
       return item.undoable && item.status === 'completed' && !item.undoneAt

@@ -26,7 +26,7 @@
 
         <PageState v-if="!items.length" title="暂无专家" description="当前筛选条件下没有专家条目。" />
         <ul v-else class="expert-list">
-          <li v-for="item in items" :key="item.id" @click="openDetail(item)">
+          <li v-for="item in items" :key="item.id" tabindex="0" role="button" @click="openDetail(item)" @keyup.enter="openDetail(item)">
             <div class="expert-list__head">
               <strong>{{ item.name }}</strong>
               <el-tag size="small" effect="plain">{{ item.catalogType === 'group' ? '团队' : '专家' }}</el-tag>

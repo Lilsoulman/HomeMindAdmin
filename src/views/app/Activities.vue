@@ -67,6 +67,13 @@
           <div v-if="detailDialog.detail.undoneAt"><dt>撤销时间</dt><dd>{{ formatTime(detailDialog.detail.undoneAt) }}</dd></div>
         </dl>
         <span slot="footer">
+          <el-button
+            v-if="detailDialog.detail.runId"
+            size="small"
+            type="primary"
+            plain
+            @click="$router.push(`/app/runs/${detailDialog.detail.runId}`)"
+          >查看运行详情</el-button>
           <el-button size="small" @click="detailDialog.visible = false">关闭</el-button>
         </span>
       </el-dialog>

@@ -8,10 +8,13 @@ import Activities from '../views/app/Activities.vue'
 import Family from '../views/app/Family.vue'
 import Favorites from '../views/app/Favorites.vue'
 import Connections from '../views/app/Connections.vue'
+import RunDetail from '../views/app/RunDetail.vue'
 import Setup from '../views/console/Setup.vue'
 import Connectors from '../views/console/Connectors.vue'
 import ConnectorDetail from '../views/console/ConnectorDetail.vue'
 import Authorizations from '../views/console/Authorizations.vue'
+import Automations from '../views/console/Automations.vue'
+import Experts from '../views/console/Experts.vue'
 import PagePlaceholder from '../views/common/PagePlaceholder.vue'
 import Forbidden from '../views/common/Forbidden.vue'
 import NotFound from '../views/common/NotFound.vue'
@@ -23,6 +26,7 @@ const appChildren = [
   { path: 'family', name: 'app-family', component: Family, meta: { title: '家庭成员与知识', permission: 'family.read' } },
   { path: 'life/favorites', name: 'app-favorites', component: Favorites, meta: { title: '我的偏好', permission: 'life.favorite.read' } },
   { path: 'connections', name: 'app-connections', component: Connections, meta: { title: '我的连接', permission: 'connector.read' } },
+  { path: 'runs/:id', name: 'app-run-detail', component: RunDetail, meta: { title: '运行详情', permission: 'ai.run' } },
   { path: 'profile', name: 'app-profile', component: PagePlaceholder, meta: { title: '账户与会话', permission: 'identity.read', feature: '账户设置' } }
 ]
 
@@ -31,8 +35,8 @@ const consoleChildren = [
   { path: 'connectors', name: 'console-connectors', component: Connectors, meta: { title: '家庭连接器', permission: 'connector.read' } },
   { path: 'connectors/:id', name: 'console-connector-detail', component: ConnectorDetail, meta: { title: '连接器详情', permission: 'connector.read' } },
   { path: 'authorizations', name: 'console-authorizations', component: Authorizations, meta: { title: '成员授权', permission: 'connector.write' } },
-  { path: 'automations', name: 'console-automations', component: PagePlaceholder, meta: { title: '自动化', permission: 'automation.read', feature: '自动化管理' } },
-  { path: 'experts', name: 'console-experts', component: PagePlaceholder, meta: { title: '专家与 Skill', permission: 'ai.read', feature: '专家与 Skill' } },
+  { path: 'automations', name: 'console-automations', component: Automations, meta: { title: '自动化', permission: 'automation.read' } },
+  { path: 'experts', name: 'console-experts', component: Experts, meta: { title: '专家与 Skill', permission: 'ai.read' } },
   { path: 'audit', name: 'console-audit', component: PagePlaceholder, meta: { title: '家庭审计', permission: 'family.read', feature: '家庭审计' } }
 ]
 

@@ -43,7 +43,7 @@
               <el-radio-group v-model="form.bindingScope" :disabled="true">
                 <el-radio label="household">家庭级</el-radio>
               </el-radio-group>
-              <p class="setup-form__hint">个人级连接（OAuth）将在对应服务发布后开放。</p>
+              <p class="setup-form__hint">个人级连接（OAuth）请在"我的连接"页面发起授权。</p>
             </el-form-item>
             <el-form-item>
               <el-button

@@ -60,6 +60,24 @@ export function getMyConnections() {
     .then((items) => (Array.isArray(items) ? items.map(toMyConnection) : []))
 }
 
+export function startPersonalAuthorization({ providerCode, redirectUri }) {
+  return request
+    .post(`/api/v1/connector-providers/${providerCode}/authorizations`, { redirectUri })
+    .then(toAuthorizationSession)
+}
+
+export function getAuthorizationSession({ id }) {
+  return request
+    .get(`/api/v1/connector-authorizations/${id}`)
+    .then(toAuthorizationSession)
+}
+
+export function revokePersonalAuthorization({ id }) {
+  return request
+    .delete(`/api/v1/connector-authorizations/${id}`)
+    .then(toAuthorizationSession)
+}
+
 function toProvider(dto = {}) {
   return {
     id: dto.Id,
@@ -116,6 +134,17 @@ function toAuthorization(dto = {}) {
     userId: dto.UserId,
     scopes: Array.isArray(dto.Scopes) ? dto.Scopes : [],
     updatedAt: dto.UpdatedAt
+  }
+}
+
+function toAuthorizationSession(dto = {}) {
+  return {
+    sessionId: dto.SessionId,
+    providerCode: dto.ProviderCode,
+    providerName: dto.ProviderName,
+    status: dto.Status,
+    expiresAt: dto.ExpiresAt,
+    authorizationUrl: dto.AuthorizationUrl
   }
 }
 

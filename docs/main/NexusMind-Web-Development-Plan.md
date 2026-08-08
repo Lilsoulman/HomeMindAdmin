@@ -5,8 +5,8 @@
 > **接口依据：** `D:\HomeMind\core\docs\frontend-api-integration.md`
 > **计划性质：** 当前实施快照。仅维护已完成项和下一步，不保留迭代历史，也不改变产品或接口契约。
 
-最近同步：2026-08-07  
-当前目标：在已发布的 `/api/v1` 契约上依次交付家庭工作台、确认与家庭协同、家庭级连接器控制台。
+最近同步：2026-08-09  
+当前目标：在已发布的 `/api/v1` 契约上依次交付个人 Connector/OAuth（已完成）与我的专家（自建专家）。
 
 ## 1. 不变基线
 
@@ -34,12 +34,14 @@
 | 家庭级 Connector 控制台 | 已完成 | Provider 目录、实例列表/创建（Vault 未启用时 503 可读消息）、测试/发现/同步（202→轮询至终态，离开页停止）、成员授权（1-32 范围，保存即替换）、我的连接（脱敏状态）已交付；表单仅接受白名单字段，绝不回显 URL/Token/`credentialRef`/供应商 ID；`npm run lint`、`npm run test:unit`（32 项）与 `npm run build` 通过 |
 | 自动化、专家与 Run | 已完成 | 自动化规则（列表/新建/编辑/启停，审批策略说明与影响预览、更新带 RowVersion、409 刷新）、专家目录与详情（版本/Persona/Methodology/ToolPolicy 摘要，PromptTemplate 不消费不展示）、Run 详情（公开阶段映射、事件时间线仅可读消息、Action 确认带幂等键、终态停轮询、离开页停止）已交付；动态详情含 RunId 时提供运行入口；`npm run lint`、`npm run test:unit`（42 项）与 `npm run build` 通过 |
 | 质量与可访问性 | 已完成 | 权限守卫角色×权限矩阵、确认幂等（页面级新键）、同步/Run 终态轮询（终态/离开页/失败停止）、页面 loading/empty/error+retry 组件测试齐备（`npm run test:unit` 149 项）；键盘可达性（专家列表可聚焦+Enter、focus-visible 样式）、窄屏断点（授权矩阵 900px 单列）已补；静态扫描确认源码与构建产物无敏感字段硬编码、无第三方直连、PromptTemplate 未被前端消费；修复 `this.homeId` 方法引用当值使用的真实缺陷；工程基线补充 `@vue/vue2-jest` 与 jest preset 支持组件测试 |
+| 个人 Connector/OAuth | 已完成 | 我的连接（仅本人可见）脱敏展示个人实例、Provider 选择发起授权（`POST /connector-providers/{code}/authorizations` + 整页跳转 `AuthorizationUrl`，会话 ID 存 `sessionStorage` 仅用于回跳定位）、`/oauth/callback` 回调路由（查询一次会话状态后回连接页）、撤销（二次确认 + `DELETE /connector-authorizations/{id}`，幂等）与 revoked 重新授权；`connector.authorize` 加入 member 角色矩阵；Setup 向导文案指向个人授权入口；`npm run lint`、`npm run test:unit`（161 项）与 `npm run build` 通过；本地全链路联调依赖后端 `ConnectorOAuth:AllowedRedirectUris` 配置（含 `http://localhost:8080/oauth/callback`） |
+| 我的专家 | 已完成 | 用户端 `/app/experts` 仅列出本人自建专家（`scope=mine`，不泄露他人）；新建表单必填名称/分类/说明/角色设定/提示词，能力策略 JSON 前端校验；更新带 RowVersion、409 刷新；删除二次确认；PromptTemplate 永不回显（编辑需重新输入）；`expert.mine.write` 加入 member 角色矩阵；`npm run lint`、`npm run test:unit`（177 项）与 `npm run build` 通过 |
 
 ## 3. 下一步
 
 | 优先级 | 交付 | 前置条件 | 最小验收 |
 | --- | --- | --- | --- |
-| P0 | 个人 Connector/OAuth | 产品决策、数据迁移、OAuth callback/PKCE/撤销及安全验收全部完成 | 仅本人可见和使用的个人实例；服务端处理 OAuth 令牌生命周期；前端仅显示脱敏连接状态。此前不得创建 UI 或推测 HTTP 接口 |
+| P1 | 快速剪辑 Skill（V2.5） | 后端 B24/B25 契约发布（`api-implementation.md`/`frontend-api-integration.md` 字段级契约） | 工作台表单（素材位置/创作目标和指令）→ `POST /skills/quick-edit/runs` 创建 → 轮询至剪辑方案摘要 → Action 确认（幂等键）→ .draft 下载（readToken）；loading/empty/error/retry 齐备；源码与构建产物无 MCP 路径/Prompt 泄露；`npm run lint`、`npm run test:unit`、`npm run build` 全部通过 |
 
 ## 4. 工程约束
 

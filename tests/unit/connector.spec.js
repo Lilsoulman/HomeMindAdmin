@@ -1,11 +1,12 @@
 import {
-  createConnector, discoverConnector, getMyAuthorization, getMyConnections, getSyncJob,
-  listConnectors, listProviders, syncConnector, testConnector, updateMemberAuthorization
+  createConnector, discoverConnector, getAuthorizationSession, getMyAuthorization, getMyConnections, getSyncJob,
+  listConnectors, listProviders, revokePersonalAuthorization, startPersonalAuthorization,
+  syncConnector, testConnector, updateMemberAuthorization
 } from '../../src/api/connector'
 import { listTenantMembers } from '../../src/api/tenant'
 
 jest.mock('../../src/utils/request', () => ({
-  request: { get: jest.fn(), post: jest.fn(), put: jest.fn() }
+  request: { get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() }
 }))
 
 import { request } from '../../src/utils/request'
@@ -109,6 +110,46 @@ describe('connector api mapping', () => {
     expect(items[0].authStatus).toBe('connected')
     expect(items[0].lastSessionStatus).toBe('completed')
     expect(items[0].name).toBe('我的日历')
+  })
+
+  it('starts a personal authorization session', async () => {
+    request.post.mockResolvedValue({
+      SessionId: 101, ProviderCode: 'mock_oauth', ProviderName: 'Mock OAuth（开发验证）',
+      Status: 'pending', ExpiresAt: '2026-08-07T10:10:00Z',
+      AuthorizationUrl: 'http://localhost:5280/api/v1/connector-providers/mock_oauth/authorize?state=abc'
+    })
+
+    const session = await startPersonalAuthorization({ providerCode: 'mock_oauth', redirectUri: 'http://localhost:8080/oauth/callback' })
+
+    expect(request.post).toHaveBeenCalledWith('/api/v1/connector-providers/mock_oauth/authorizations', { redirectUri: 'http://localhost:8080/oauth/callback' })
+    expect(session).toEqual({
+      sessionId: 101, providerCode: 'mock_oauth', providerName: 'Mock OAuth（开发验证）',
+      status: 'pending', expiresAt: '2026-08-07T10:10:00Z', authorizationUrl: 'http://localhost:5280/api/v1/connector-providers/mock_oauth/authorize?state=abc'
+    })
+  })
+
+  it('gets an authorization session by id', async () => {
+    request.get.mockResolvedValue({
+      SessionId: 101, ProviderCode: 'mock_oauth', ProviderName: 'Mock OAuth（开发验证）',
+      Status: 'completed', ExpiresAt: '2026-08-07T10:10:00Z', RedirectUri: 'http://localhost:8080/oauth/callback'
+    })
+
+    const session = await getAuthorizationSession({ id: 101 })
+
+    expect(request.get).toHaveBeenCalledWith('/api/v1/connector-authorizations/101')
+    expect(session.status).toBe('completed')
+  })
+
+  it('revokes a personal authorization by id', async () => {
+    request.delete.mockResolvedValue({
+      SessionId: 101, ProviderCode: 'mock_oauth', ProviderName: 'Mock OAuth（开发验证）',
+      Status: 'revoked', ExpiresAt: '2026-08-07T10:10:00Z', RedirectUri: null
+    })
+
+    const session = await revokePersonalAuthorization({ id: 101 })
+
+    expect(request.delete).toHaveBeenCalledWith('/api/v1/connector-authorizations/101')
+    expect(session.status).toBe('revoked')
   })
 
   it('maps tenant members for authorization config', async () => {

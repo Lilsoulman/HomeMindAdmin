@@ -1,7 +1,7 @@
-import { confirmRunAction, getExpert, getRun, getRunActions, getRunEvents, listExperts } from '../../src/api/expert'
+import { confirmRunAction, createExpert, getExpert, getRun, getRunActions, getRunEvents, listExperts, removeExpert, updateExpert } from '../../src/api/expert'
 
 jest.mock('../../src/utils/request', () => ({
-  request: { get: jest.fn(), post: jest.fn() }
+  request: { get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() }
 }))
 
 import { request } from '../../src/utils/request'
@@ -31,10 +31,10 @@ describe('expert api mapping', () => {
     expect(request.get).toHaveBeenCalledWith('/api/v1/experts', { params: {} })
   })
 
-  it('maps detail without prompt template', async () => {
+  it('maps detail with rowVersion but never prompt template', async () => {
     request.get.mockResolvedValue({
       Id: 1, Code: 'writing-coach', Name: 'Writing coach', Category: 'writing', Description: '写作辅导',
-      PrivacyScope: null, Source: 'basic', VersionId: 4, Version: 4, Persona: '你是写作教练',
+      PrivacyScope: null, Source: 'basic', VersionId: 4, Version: 4, RowVersion: 7, Persona: '你是写作教练',
       Methodology: '分步骤反馈', PromptTemplate: 'system: you are...', ToolPolicy: '{"tools":["web.search"]}',
       OutputSchema: '{"type":"object"}', EstimatedCredits: 1
     })
@@ -44,9 +44,50 @@ describe('expert api mapping', () => {
     expect(request.get).toHaveBeenCalledWith('/api/v1/experts/1', { params: { type: 'expert' } })
     expect(detail.name).toBe('Writing coach')
     expect(detail.version).toBe(4)
+    expect(detail.rowVersion).toBe(7)
     expect(detail.persona).toBe('你是写作教练')
     expect(detail.toolPolicy).toBe('{"tools":["web.search"]}')
     expect(detail).not.toHaveProperty('promptTemplate')
+  })
+
+  it('posts create expert payload', async () => {
+    request.post.mockResolvedValue({
+      Id: 2, Code: 'custom-abc', Source: 'mine', Version: 1, Name: '我的助手',
+      Category: 'travel', Description: '旅行助手', Persona: '你是我的旅行助手', RowVersion: 1
+    })
+
+    const expert = await createExpert({
+      name: '我的助手', category: 'travel', description: '旅行助手',
+      persona: '你是我的旅行助手', methodology: undefined, promptTemplate: 'system: you are...', toolPolicyJson: '{"skills":[]}'
+    })
+
+    expect(request.post).toHaveBeenCalledWith('/api/v1/experts', {
+      name: '我的助手', category: 'travel', description: '旅行助手',
+      persona: '你是我的旅行助手', methodology: undefined, promptTemplate: 'system: you are...', toolPolicyJson: '{"skills":[]}'
+    })
+    expect(expert.id).toBe(2)
+    expect(expert.source).toBe('mine')
+    expect(expert.version).toBe(1)
+    expect(expert.rowVersion).toBe(1)
+  })
+
+  it('puts update with rowVersion', async () => {
+    request.put.mockResolvedValue({ Id: 1, Name: '改过的助手', Version: 2, RowVersion: 2 })
+
+    const expert = await updateExpert({ id: 1, payload: { name: '改过的助手', rowVersion: 1 } })
+
+    expect(request.put).toHaveBeenCalledWith('/api/v1/experts/1', { name: '改过的助手', rowVersion: 1 })
+    expect(expert.name).toBe('改过的助手')
+    expect(expert.version).toBe(2)
+    expect(expert.rowVersion).toBe(2)
+  })
+
+  it('deletes expert by id', async () => {
+    request.delete.mockResolvedValue(undefined)
+
+    await removeExpert({ id: 3 })
+
+    expect(request.delete).toHaveBeenCalledWith('/api/v1/experts/3')
   })
 
   it('maps run view without raw input or result', async () => {

@@ -14,6 +14,22 @@ export function getExpert({ id, type }) {
     .then(toDetail)
 }
 
+export function createExpert(payload) {
+  return request
+    .post('/api/v1/experts', payload)
+    .then(toDetail)
+}
+
+export function updateExpert({ id, payload }) {
+  return request
+    .put(`/api/v1/experts/${id}`, payload)
+    .then(toDetail)
+}
+
+export function removeExpert({ id }) {
+  return request.delete(`/api/v1/experts/${id}`)
+}
+
 // ─── Run ───
 
 export function getRun({ id }) {
@@ -71,6 +87,7 @@ function toDetail(dto = {}) {
     source: dto.Source,
     versionId: dto.VersionId,
     version: dto.Version,
+    rowVersion: dto.RowVersion,
     persona: dto.Persona,
     methodology: dto.Methodology,
     toolPolicy: dto.ToolPolicy,

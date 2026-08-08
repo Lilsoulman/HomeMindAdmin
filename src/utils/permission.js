@@ -4,8 +4,8 @@ const rolePermissions = {
   member: [
     'identity.read', 'smart_home.read', 'family.read', 'family.write',
     'steward.activity.read', 'confirmation.read', 'confirmation.write',
-    'life.favorite.read', 'life.favorite.write', 'connector.read',
-    'automation.read', 'ai.read', 'ai.run'
+    'life.favorite.read', 'life.favorite.write', 'connector.read', 'connector.authorize',
+    'automation.read', 'ai.read', 'ai.run', 'expert.mine.write'
   ],
   viewer: [
     'identity.read', 'smart_home.read', 'family.read', 'steward.activity.read',

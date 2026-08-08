@@ -81,8 +81,9 @@ NexusMind Web 是家庭成员和家庭管理员在 PC 使用的控制台，不�
 | `/app/activities` | 管家动态 | 游标分页、详情、可撤销活动 |
 | `/app/family` | 家庭成员与知识 | 成员状态、知识、决策记录 |
 | `/app/life/favorites` | 我的偏好 | 餐厅/旅行/素材收藏及可见性 |
-| `/app/connections` | 我的连接 | 已授权家庭 Connector；未来个人 OAuth 入口 |
+| `/app/connections` | 我的连接 | 已授权家庭 Connector 与本人个人实例（OAuth）脱敏状态；发起授权、撤销、重新授权 |
 | `/app/runs/:id` | 运行详情 | 可公开事件、影响、Action 确认、专家文件（附件）、时间线、生成文件下载——承接移动端移出的运行细节 |
+| `/app/media/quick-edit` | 快速剪辑 | 素材位置与创作目标和指令表单、Skill 运行轮询、剪辑方案摘要、Action 确认、.draft 草稿下载 |
 | `/app/experts` | 我的专家 | 自建专家列表、新建、编辑、删除（仅创建者本人可见） |
 | `/app/profile` | 账户与会话 | 本人资料、退出 |
 
@@ -106,9 +107,11 @@ NexusMind Web 是家庭成员和家庭管理员在 PC 使用的控制台，不�
 
 - 确认卡显示标题、影响范围、风险、创建/过期时间、建议动作。L1 仅同家庭且未过期 `pending` 项可批量确认；L2/L3 永远逐项确认或拒绝。每次用户意图生成新的 UUID 幂等键，提交期间禁用按钮。
 - 连接页只显示名称、Provider、`status`、`authStatus`、最后同步/健康检查时间和本人范围；不显示 Token、Cookie、URL、`credentialRef`、供应商 ID 或原始错误。
+- 个人 OAuth 授权从"我的连接"页发起：选择 Provider → `POST /connector-providers/{code}/authorizations`（`redirectUri = 当前 origin + /oauth/callback`，须命中服务端白名单）→ 整页跳转服务端 `AuthorizationUrl`；回调 302 落回 `/oauth/callback`，该页仅读取会话状态、清理本地标记后返回连接页。发起前把会话 ID 写入 `sessionStorage`（仅用于回跳定位，非凭据），撤销经 `DELETE /connector-authorizations/{id}` 二次确认执行。
 - 成员页展示 `active`、`away`、`permanently_left`、`deceased`；终态更正仅对有权限者开放，必须输入原因并二次确认。
 - Run 详情只显示可理解阶段、建议、Action 和结果；终态停止轮询，不显示 Prompt、思考链和原始日志。
 - 我的专家页仅列出并编辑 `owner_user_id=本人` 的自建专家（`scope=mine`）；新建表单必填名称与说明，可编辑自有策略；删除为软删除并二次确认、写家庭审计；编辑期间提示词不回显。
+- 快速剪辑页表单输入素材位置（本机/NAS 路径字符串，不做本机文件浏览，可访问性由服务端校验）与创作目标和指令；提交生成新的 UUID 幂等键；运行终态或离开页面停止轮询；剪辑方案 Action 确认幂等；草稿下载使用 10 分钟 readToken；不渲染 Prompt、思考链或 MCP 内部路径。
 
 ### 开发端
 
@@ -142,6 +145,8 @@ NexusMind Web 是家庭成员和家庭管理员在 PC 使用的控制台，不�
 运行以 `POST /api/v1/expert-runs` 创建（携带幂等键），通过 `GET /api/v1/expert-runs/{id}` 与 `/events` 轮询公开事件，`/cancel`、`/retry` 处理生命周期（retry 仅限 `failed|cancelled`）。Web 只将状态映射为可理解阶段（如排队/运行中/已完成/失败），不渲染 Prompt、思维链或供应商日志。
 
 `/app/runs/:id` 运行详情展示可公开事件、建议、Action 与结果；Action 状态为 `pending|confirmed|rejected|executing|executed|failed|cancelled`。写操作（`POST /api/v1/expert-runs/{runId}/actions/{actionId}/confirm`）必须使用新的 UUID 幂等键，提交期间禁用按钮；重复键返回既有结果，绝不重复执行。终态停止轮询；跨用户或跨租户的 Run 返回 `404`。
+
+Skill 独立运行（SourceType=skill，如快速剪辑）复用同一运行视图与确认链路：`POST /api/v1/skills/{skillCode}/runs` 创建后按既有 Run 详情轮询，剪辑方案 Action 确认后登记生成文件，经 readToken 下载；不渲染 MCP 内部路径或 Prompt。
 
 ### 6.4 个人生活专家
 
@@ -185,7 +190,7 @@ Web 不缓存未公开的运行上下文；Run 详情不显示原始错误与完
 | `/console/connectors` 家庭连接器 | 列表：健康、授权状态、Tool 摘要、最后同步/健康检查时间、同步任务 |
 | `/console/connectors/:id` 连接器详情 | 非敏感配置、测试、发现、同步、成员授权 |
 | `/console/authorizations` 成员授权 | 成员 × 实例的范围与确认策略 |
-| `/app/connections` 我的连接 | 已授权家庭 Connector 摘要；未来个人 OAuth 入口 |
+| `/app/connections` 我的连接 | 已授权家庭 Connector 与本人个人实例（OAuth）脱敏摘要；发起授权、撤销、重新授权 |
 
 ### 7.2 创建与凭据
 
@@ -210,12 +215,18 @@ Web 不缓存未公开的运行上下文；Run 详情不显示原始错误与完
 | --- | --- |
 | Provider 目录、实例列表、授权信息 | `connector.read` |
 | 创建、测试、发现、同步、成员授权 | `connector.write`（owner/admin） |
+| 个人授权发起、会话查询、撤销、我的连接汇总 | `connector.authorize`（owner/admin/member，前端按角色保守提示） |
 
 所有响应绝不包含 `credentialRef`、URL、访问/刷新令牌、厂商实体 ID 或协议字段；连接页只显示名称、Provider、`status`、`authStatus`、最后同步/健康检查时间与本人范围。
 
-### 7.7 V2.4 个人 Connector（待发布）
+### 7.7 V2.4 个人 Connector（已发布）
 
-产品模型已确认（`binding_scope=household|personal`、个人实例 `owner_user_id`、OAuth 授权会话），但在 B18/B19 契约与 OAuth 安全验证发布前，Web 不实现任何 HTTP 页面：不录入、不存储、不记录 OAuth code、access token、refresh token 或 `credentialRef`；仅后续消费脱敏状态（授权、状态、撤销）。
+产品模型：`binding_scope=household|personal`，个人实例带 `owner_user_id`，经 OAuth 授权会话完成凭据生命周期（服务端处理令牌交换与撤销）。Web 已接入：
+
+- 发起：`POST /api/v1/connector-providers/{providerCode}/authorizations`，请求体 `{ redirectUri }` 必须精确命中服务端 `ConnectorOAuth:AllowedRedirectUris` 白名单（否则 `422`；Vault 不可用 `503`+`50001`）。前端以 `window.location.origin + '/oauth/callback'` 作为 `redirectUri`，会话 ID 写入 `sessionStorage`（仅用于回跳定位），随后整页跳转响应中的 `AuthorizationUrl`（匿名 Mock 授权页 → 服务端匿名回调完成令牌交换 → 302 回 `redirectUri`，全程浏览器参与）。
+- 回调：`/oauth/callback` 页面读取会话 ID → `GET /connector-authorizations/{id}` 查询一次脱敏状态 → 清理本地标记 → 返回"我的连接"。
+- 状态与撤销：`GET/DELETE /connector-authorizations/{id}` 仅本人可用（撤销幂等，写审计）；`GET /connector-authorizations/my` 提供本人个人实例 + 最近会话的脱敏摘要。
+- 页面仅消费脱敏状态（`Status`/`AuthStatus`/最后会话），不录入、不存储、不记录 OAuth code、access token、refresh token 或 `credentialRef`。个人实例由服务端回调自动创建，不在首次部署向导中录入。
 
 ## 8. API 映射与后端前置项
 
@@ -226,9 +237,10 @@ Web 不缓存未公开的运行上下文；Run 详情不显示原始错误与完
 | 认证 | `POST /api/v1/auth/register`、`/login`、`/refresh`、`/logout`，`GET /api/v1/auth/me` |
 | 概览 | `GET /api/v1/dashboard` |
 | 家庭 | `/api/v1/homes/{homeId}/members`、`knowledge`、`decisions`、`activities`、`confirmations` |
-| Connector | `GET /api/v1/connector-providers`、`GET/POST /api/v1/connectors`、测试/发现/同步/授权路由 |
+| Connector | `GET /api/v1/connector-providers`、`GET/POST /api/v1/connectors`、测试/发现/同步/授权路由；个人 OAuth：`POST /api/v1/connector-providers/{code}/authorizations`、`GET/DELETE /api/v1/connector-authorizations/{id}`、`GET /api/v1/connector-authorizations/my` |
 | 自动化 | `GET/POST/PATCH /api/v1/automation-rules` |
 | 专家 | `/api/v1/experts`（`?scope=basic\|mine\|all`）、`/skills`、`/expert-runs` |
+| Skill | `GET /api/v1/skills`、`POST /api/v1/skills/{skillCode}/runs`（`media.read`；执行前以 `api-implementation.md` 字段级契约为准） |
 | 会话 | `/api/v1/conversations`、`/conversations/{id}`、`/conversations/{id}/messages` |
 | 个人偏好 | `/api/v1/life/favorites` |
 

@@ -8,6 +8,7 @@ import Activities from '../views/app/Activities.vue'
 import Family from '../views/app/Family.vue'
 import Favorites from '../views/app/Favorites.vue'
 import Connections from '../views/app/Connections.vue'
+import MyExperts from '../views/app/MyExperts.vue'
 import RunDetail from '../views/app/RunDetail.vue'
 import Setup from '../views/console/Setup.vue'
 import Connectors from '../views/console/Connectors.vue'
@@ -15,6 +16,7 @@ import ConnectorDetail from '../views/console/ConnectorDetail.vue'
 import Authorizations from '../views/console/Authorizations.vue'
 import Automations from '../views/console/Automations.vue'
 import Experts from '../views/console/Experts.vue'
+import OAuthCallback from '../views/common/OAuthCallback.vue'
 import PagePlaceholder from '../views/common/PagePlaceholder.vue'
 import Forbidden from '../views/common/Forbidden.vue'
 import NotFound from '../views/common/NotFound.vue'
@@ -26,6 +28,7 @@ const appChildren = [
   { path: 'family', name: 'app-family', component: Family, meta: { title: '家庭成员与知识', permission: 'family.read' } },
   { path: 'life/favorites', name: 'app-favorites', component: Favorites, meta: { title: '我的偏好', permission: 'life.favorite.read' } },
   { path: 'connections', name: 'app-connections', component: Connections, meta: { title: '我的连接', permission: 'connector.read' } },
+  { path: 'experts', name: 'app-experts', component: MyExperts, meta: { title: '我的专家', permission: 'ai.read' } },
   { path: 'runs/:id', name: 'app-run-detail', component: RunDetail, meta: { title: '运行详情', permission: 'ai.run' } },
   { path: 'profile', name: 'app-profile', component: PagePlaceholder, meta: { title: '账户与会话', permission: 'identity.read', feature: '账户设置' } }
 ]
@@ -58,6 +61,7 @@ export const routes = [
     redirect: '/console/connectors',
     children: consoleChildren
   },
+  { path: '/oauth/callback', name: 'oauth-callback', component: OAuthCallback, meta: { public: true, title: 'OAuth 回调' } },
   { path: '/403', name: 'forbidden', component: Forbidden, meta: { public: true, title: '无权访问' } },
   { path: '/', redirect: '/app/overview' },
   { path: '*', name: 'not-found', component: NotFound, meta: { public: true, title: '页面不存在' } }

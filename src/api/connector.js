@@ -72,6 +72,12 @@ export function getAuthorizationSession({ id }) {
     .then(toAuthorizationSession)
 }
 
+export function pollAuthorization({ id }) {
+  return request
+    .post(`/api/v1/connector-authorizations/${id}/poll`)
+    .then(toAuthorizationSession)
+}
+
 export function revokePersonalAuthorization({ id }) {
   return request
     .delete(`/api/v1/connector-authorizations/${id}`)
@@ -144,7 +150,8 @@ function toAuthorizationSession(dto = {}) {
     providerName: dto.ProviderName,
     status: dto.Status,
     expiresAt: dto.ExpiresAt,
-    authorizationUrl: dto.AuthorizationUrl
+    authorizationUrl: dto.AuthorizationUrl,
+    qrContent: dto.QrContent
   }
 }
 

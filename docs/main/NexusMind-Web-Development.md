@@ -83,8 +83,10 @@ NexusMind Web 是家庭成员和家庭管理员在 PC 使用的控制台，不�
 | `/app/life/favorites` | 我的偏好 | 餐厅/旅行/素材收藏及可见性 |
 | `/app/connections` | 我的连接 | 已授权家庭 Connector 与本人个人实例（OAuth）脱敏状态；发起授权、撤销、重新授权 |
 | `/app/runs/:id` | 运行详情 | 可公开事件、影响、Action 确认、专家文件（附件）、时间线、生成文件下载——承接移动端移出的运行细节 |
-| `/app/media/quick-edit` | 快速剪辑 | 素材位置与创作目标和指令表单、Skill 运行轮询、剪辑方案摘要、Action 确认、.draft 草稿下载 |
+| `/app/media/quick-edit` | 快速剪辑 | 分步对话式引导（素材→目标→方案→确认→导出）：素材上传/路径输入、素材卡片、chat 引导、方案时间线、修订、Action 确认、.draft 草稿下载 |
+| `/app/tools/mindmap` | 思维导图 | 粘贴或本地 .md 文件 → 交互式思维导图（缩放/折叠）→ 导出 SVG/PNG/自包含 HTML |
 | `/app/experts` | 我的专家 | 自建专家列表、新建、编辑、删除（仅创建者本人可见） |
+| `/app/skills` | 我的技能 | 本人用户级技能列表与详情（Prompt 仅本人可见，只读查看） |
 | `/app/profile` | 账户与会话 | 本人资料、退出 |
 
 ### 开发端 `/console`
@@ -111,7 +113,8 @@ NexusMind Web 是家庭成员和家庭管理员在 PC 使用的控制台，不�
 - 成员页展示 `active`、`away`、`permanently_left`、`deceased`；终态更正仅对有权限者开放，必须输入原因并二次确认。
 - Run 详情只显示可理解阶段、建议、Action 和结果；终态停止轮询，不显示 Prompt、思考链和原始日志。
 - 我的专家页仅列出并编辑 `owner_user_id=本人` 的自建专家（`scope=mine`）；新建表单必填名称与说明，可编辑自有策略；删除为软删除并二次确认、写家庭审计；编辑期间提示词不回显。
-- 快速剪辑页表单输入素材位置（本机/NAS 路径字符串，不做本机文件浏览，可访问性由服务端校验）与创作目标和指令；提交生成新的 UUID 幂等键；运行终态或离开页面停止轮询；剪辑方案 Action 确认幂等；草稿下载使用 10 分钟 readToken；不渲染 Prompt、思考链或 MCP 内部路径。
+- 快速剪辑页以分步对话式引导推进：素材支持浏览器上传（经 `POST /api/v1/clipping/materials` 登记，服务端落盘 + ffprobe 提取元数据，上传后回填素材路径）或本机/NAS 路径输入（可访问性由服务端校验，仅允许配置的素材根目录，越界 403）；对话经 `POST /api/v1/clipping/chat` 无状态推进（context 随请求回传、模板回复、suggestions 引导按钮）；对话达成目标后创建 Skill Run（UUID 幂等键）；方案以结构化时间线展示（片段序列/配乐/总时长）；「修改目标重新生成」经 `POST /skills/runs/{runId}/revise`（UUID 幂等键）；运行终态或离开页面停止轮询；剪辑方案 Action 确认幂等；草稿下载使用 10 分钟 readToken；不渲染 Prompt、思考链或 MCP 内部路径。
+- 思维导图页（`/app/tools/mindmap`）为纯客户端转换：粘贴 markdown 或本地 `.md` 文件（FileReader 本地读取为文本，不上传服务端）→ `POST /api/v1/skills/mindmap/runs` 创建 Skill Run（UUID 幂等键，同步返回 completed）→ markmap-lib 在浏览器转换渲染交互视图；导出 SVG/PNG 来自 markmap-view 实例，「自包含 HTML」内联本地 vendor 资源；Run 记录在运行详情可追溯；不渲染 Prompt。
 
 ### 开发端
 
@@ -146,7 +149,7 @@ NexusMind Web 是家庭成员和家庭管理员在 PC 使用的控制台，不�
 
 `/app/runs/:id` 运行详情展示可公开事件、建议、Action 与结果；Action 状态为 `pending|confirmed|rejected|executing|executed|failed|cancelled`。写操作（`POST /api/v1/expert-runs/{runId}/actions/{actionId}/confirm`）必须使用新的 UUID 幂等键，提交期间禁用按钮；重复键返回既有结果，绝不重复执行。终态停止轮询；跨用户或跨租户的 Run 返回 `404`。
 
-Skill 独立运行（SourceType=skill，如快速剪辑）复用同一运行视图与确认链路：`POST /api/v1/skills/{skillCode}/runs` 创建后按既有 Run 详情轮询，剪辑方案 Action 确认后登记生成文件，经 readToken 下载；不渲染 MCP 内部路径或 Prompt。
+Skill 独立运行（SourceType=skill，如快速剪辑）复用同一运行视图与确认链路：`POST /api/v1/skills/{skillCode}/runs` 创建后按既有 Run 详情轮询，剪辑方案以结构化时间线展示（B30 视图：片段序列/配乐/总时长）；不满意可经 `POST /skills/runs/{runId}/revise` 修订指令重新生成方案（B31，UUID 幂等键）；Action 确认后登记生成文件，经 readToken 下载；素材经 `POST /api/v1/clipping/materials` 上传登记或路径输入；对话引导经 `POST /api/v1/clipping/chat` 无状态推进（只引导不执行）；不渲染 MCP 内部路径或 Prompt。
 
 ### 6.4 个人生活专家
 
@@ -179,6 +182,24 @@ Web 不缓存未公开的运行上下文；Run 详情不显示原始错误与完
 ### 6.7 用户端自建专家
 
 用户端 `/app/experts`（我的专家）允许成员自建专家并自行维护，仅创建者本人可见（`scope=mine`），不展示给家庭其他成员；开发端 `/console/experts` 继续维护平台基础专家（`scope=basic`），两者互不覆盖。自建专家编辑仅在 `expert.mine.write` 等权限存在时开放；删除为软删除并写家庭审计，破坏性删除必须二次确认；提示词不出现在列表、日志、通知或错误详情。自建专家与基础专家在移动端/Web 目录中按来源区分展示；对话发送仅由移动端发起，Web 只读消费会话关联的运行详情。
+
+### 6.8 思维导图 Skill（V2.7）
+
+`/app/tools/mindmap` 是纯客户端转换工具：输入 markdown（粘贴或本地 `.md` 文件）→ 创建 Skill Run → markmap-lib 在浏览器转换并渲染交互式思维导图（缩放、拖拽、节点折叠/展开、适配窗口）。转换与渲染全部在浏览器完成（确定性纯函数，与 `core/scripts/md2mindmap.mjs` 同源），服务端只记录 Run 与审计；因此本页不依赖 AI 运行时，`ai.config.enabled=false` 不影响使用。
+
+- **依赖资源**：`public/vendor/markmap/` 下 `markmap-lib.js` 与 `markmap-view.js`（npm 包的 browser IIFE 产物，d3 内联；从 `dist/browser/` 拷贝提交，与本地 md2mindmap 脚本锁定同一 markmap 版本）；`<script>` 静态引入，不进 webpack 打包，规避 Vue 2/webpack 4 对 ESM 依赖的兼容问题；
+- **交互**：导入后立即渲染；缩放/折叠为 markmap-view 内置能力，导出按钮置于页面底部（导出 SVG 经实例 `exportSVG()`；导出 PNG 绘制到 canvas；「自包含 HTML」将 vendor 两文件文本 + 思维导图树 JSON 内联进模板后下载，断网可开，符合产品本地优先原则）；
+- **权限**：`mindmap.read`（owner/admin/member）+ `ai.run`；viewer 不注册路由与调用；
+- **数据边界**：markdown 全文仅随请求发送并存入 Run RequestJson（家庭租户隔离）；不上传服务端文件、不缓存 LocalStorage、不写日志；响应不渲染 Prompt。
+
+### 6.9 Skill 目录查看（V2.7）
+
+产品决策：用户端只能查看本人用户级技能，开发端可查看全部（平台级目录 + 成员技能）。统一经 `GET /api/v1/skills?scope=mine|platform|all`（默认 `mine` 保持既有行为，对齐 `/experts?scope=basic|mine|all` 先例）。
+
+- **用户端 `/app/skills`（我的技能）**：`scope=mine` 列表本人用户级技能（名称/启用状态/更新时间）；详情只读，Prompt 仅本人可见；不提供新建/编辑页面（CRUD 接口既有，页面后续按需补）；
+- **开发端 `/console/experts` 新增「Skill」Tab**：`scope=all` 分两组展示——平台级目录（key/名称/分类/风险等级/所需权限/输入 schema，只读）与成员技能（名称/成员/状态，**Prompt 不回显**）；
+- 路由与菜单：用户端 `/app/skills` 仅 `scope=mine`（`ai.skills.read`，所有成员）；开发端 Tab 仅 owner/admin（`scope=platform`/`all` 服务端校验角色，member/viewer 即使持有 `ai.read` 也 403）；
+- 数据边界：除本人技能详情外，任何视图不展示 Prompt 明文；平台目录不展示审计或运行时字段。
 
 ## 7. 连接器功能设计
 
@@ -240,7 +261,10 @@ Web 不缓存未公开的运行上下文；Run 详情不显示原始错误与完
 | Connector | `GET /api/v1/connector-providers`、`GET/POST /api/v1/connectors`、测试/发现/同步/授权路由；个人 OAuth：`POST /api/v1/connector-providers/{code}/authorizations`、`GET/DELETE /api/v1/connector-authorizations/{id}`、`GET /api/v1/connector-authorizations/my` |
 | 自动化 | `GET/POST/PATCH /api/v1/automation-rules` |
 | 专家 | `/api/v1/experts`（`?scope=basic\|mine\|all`）、`/skills`、`/expert-runs` |
-| Skill | `GET /api/v1/skills`、`POST /api/v1/skills/{skillCode}/runs`（`media.read`；执行前以 `api-implementation.md` 字段级契约为准） |
+| Skill | `GET /api/v1/skills`、`POST /api/v1/skills/{skillCode}/runs`、`POST /api/v1/skills/runs/{runId}/actions/{actionId}/confirm`、`POST /api/v1/skills/runs/{runId}/revise`（B24/B25/B31，`ai.run` + `media.read`）；轮询复用 `/api/v1/expert-runs/{id}`；草稿下载经 `POST /api/v1/expert-files/{fileId}/read-token?purpose=download` 的 `ReadUrl`（10 分钟 readToken，不落库） |
+| 素材与剪辑对话 | `POST/GET/DELETE /api/v1/clipping/materials`（B29，`media.read` + `media.write`，multipart 上传/列表/删除，ffprobe 元数据，路径模式仅允许素材根目录）；`POST /api/v1/clipping/chat`（B32，`ai.run` + `media.read`，无状态 context 引导） |
+| 思维导图 | `POST /api/v1/skills/mindmap/runs`（B33，`ai.run` + `mindmap.read`，markdown ≤100000 字符、同步 completed、UUID 幂等键） |
+| Skill 目录 | `GET /api/v1/skills?scope=mine|platform|all`（B34，默认 `mine`；mine=`ai.skills.read` 所有成员；platform/all 仅 owner/admin 角色，member/viewer 403，成员技能视图不含 Prompt） |
 | 会话 | `/api/v1/conversations`、`/conversations/{id}`、`/conversations/{id}/messages` |
 | 个人偏好 | `/api/v1/life/favorites` |
 
@@ -294,6 +318,8 @@ admin/
 | W3 | 开发端 Connector | Provider、列表、详情、测试、发现、同步、授权、自动化；无凭据回显 |
 | W4 | 专家与运行 | 专家/Skill、Run、Action、用户自建专家、会话运行详情；不显示 Prompt/思考链 |
 | W5 | 个人 Connector | B18/B19 发布后实现授权、状态、撤销和家庭/个人 scope 隔离 |
+| W6 | 思维导图工具 | `/app/tools/mindmap`：输入 → Run 创建 → markmap 渲染 → 导出；vendor 资源本地化；后端 B33 发布后实现 |
+| W7 | Skill 目录查看 | 用户端 `/app/skills`（`scope=mine`，本人技能只读）+ 开发端 Skill Tab（`scope=all`，平台目录 + 成员技能脱敏视图）；后端 B34 发布后实现 |
 
 每阶段必须通过 `npm run lint`、单元测试和生产构建；覆盖 owner/admin/member/viewer 与跨家庭不泄露场景；覆盖确认、同步和 OAuth 的 loading、empty、error、retry 与轮询清理；静态扫描确保源码和构建产物不含第三方 Token、Cookie、API Key、`credential_ref`、MCP SQLite 路径或 Prompt。
 
@@ -304,3 +330,4 @@ admin/
 3. 首次部署凭据如何进入 Vault。Web 不应接收明文密钥，建议由 N97 本地受控部署向导或 Provider OAuth 托管。
 4. 用户邀请、家庭创建、注册后加入家庭的 API 尚未发布，Web 在契约发布前不实现对应流程。
 5. 可画、飞书、钉钉等 Productivity/Future Connector Provider 的接入节奏（影响专家对话框的可选连接器列表）。
+6. markmap-lib/view 版本锁定策略（当前 0.18.x，随 npm 安装固定，与本地 `core/scripts/md2mindmap.mjs` 保持同版本）。

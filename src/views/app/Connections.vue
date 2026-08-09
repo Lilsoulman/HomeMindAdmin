@@ -56,12 +56,23 @@
           <el-button type="primary" :loading="submitting" :disabled="!selectedProvider" @click="confirmAdd">前往授权</el-button>
         </span>
       </el-dialog>
+
+      <el-dialog title="扫码登录" :visible.sync="qrDialogVisible" width="420px" :close-on-click-modal="false" @close="stopQrPolling">
+        <p class="qr-auth-hint">请在小红书 App 中扫描二维码完成登录（当前为 Mock 环境）。</p>
+        <div class="qr-auth-body">
+          <img v-if="qrDataUrl" :src="qrDataUrl" alt="登录二维码" class="qr-auth-qr">
+          <p v-else-if="qrSession && qrSession.qrContent" class="qr-auth-placeholder">正在生成二维码…</p>
+          <p v-else class="qr-auth-placeholder">暂无二维码内容。</p>
+        </div>
+        <p v-if="qrPolling" class="qr-auth-status"><i class="el-icon-loading" /> 等待扫码登录…</p>
+      </el-dialog>
     </template>
   </section>
 </template>
 
 <script>
-import { getMyConnections, listProviders, revokePersonalAuthorization, startPersonalAuthorization } from '../../api/connector'
+import QRCode from 'qrcode'
+import { getMyConnections, listProviders, pollAuthorization, revokePersonalAuthorization, startPersonalAuthorization } from '../../api/connector'
 import { hasPermission } from '../../utils/permission'
 import PageState from '../../components/common/PageState.vue'
 
@@ -79,7 +90,12 @@ export default {
       dialogVisible: false,
       providers: [],
       selectedProviderId: null,
-      submitting: false
+      submitting: false,
+      qrDialogVisible: false,
+      qrSession: null,
+      qrPollTimer: null,
+      qrPolling: false,
+      qrDataUrl: null
     }
   },
   computed: {
@@ -98,6 +114,7 @@ export default {
   },
   destroyed() {
     this.pageAlive = false
+    this.stopQrPolling()
   },
   methods: {
     async load() {
@@ -167,7 +184,11 @@ export default {
           redirectUri: `${window.location.origin}/oauth/callback`
         })
         window.sessionStorage.setItem('oauthSessionId', String(session.sessionId))
-        window.location.href = session.authorizationUrl
+        if (session.authorizationUrl) {
+          window.location.href = session.authorizationUrl
+        } else {
+          this.openQrDialog(session)
+        }
       } catch (error) {
         if (error.status === 503) {
           this.$message.error(error.message || '安全凭据托管尚未启用（Secret Vault），暂无法发起个人授权。')
@@ -177,6 +198,44 @@ export default {
           this.$message.error(error.message || '发起授权失败，请重试。')
         }
       }
+    },
+    openQrDialog(session) {
+      this.qrSession = session
+      this.qrDataUrl = null
+      this.qrDialogVisible = true
+      this.qrPolling = true
+      this.startQrPolling()
+      if (session.qrContent) {
+        QRCode.toDataURL(session.qrContent, { width: 180, margin: 1 })
+          .then((url) => { if (this.pageAlive) this.qrDataUrl = url })
+          .catch(() => {})
+      }
+    },
+    startQrPolling() {
+      if (this.qrPollTimer) return
+      this.qrPollTimer = setInterval(this.pollOnce, 3000)
+    },
+    async pollOnce() {
+      if (!this.qrSession) return
+      try {
+        const session = await pollAuthorization({ id: this.qrSession.sessionId })
+        if (session.status !== 'completed') return
+        this.stopQrPolling()
+        this.qrDialogVisible = false
+        this.$message.success('授权完成。')
+        this.load()
+      } catch (error) {
+        this.stopQrPolling()
+        this.qrDialogVisible = false
+        this.$message.error(error.message || '等待扫码登录失败，请重试。')
+      }
+    },
+    stopQrPolling() {
+      if (this.qrPollTimer) {
+        clearInterval(this.qrPollTimer)
+        this.qrPollTimer = null
+      }
+      this.qrPolling = false
     },
     revoke(item) {
       this.$confirm('撤销后将断开该个人连接并终止凭据可用性，是否继续？', '撤销授权', {

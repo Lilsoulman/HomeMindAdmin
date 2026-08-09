@@ -148,7 +148,21 @@ function toRunAction(dto = {}) {
     deviceId: dto.DeviceId,
     deviceName: dto.DeviceName,
     capability: dto.Capability,
-    targetValue: dto.TargetValue
+    targetValue: dto.TargetValue,
+    // B30 快速剪辑方案结构化视图：片段序列/配乐/总时长（时间线渲染）
+    plan: {
+      segments: Array.isArray(dto.Segments) ? dto.Segments.map(toPlanSegment) : [],
+      audio: dto.Audio,
+      totalDuration: dto.TotalDuration
+    }
+  }
+}
+
+function toPlanSegment(dto = {}) {
+  return {
+    index: dto.Index,
+    source: dto.Source,
+    duration: dto.Duration
   }
 }
 

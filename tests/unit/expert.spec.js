@@ -135,7 +135,8 @@ describe('expert api mapping', () => {
     expect(request.get).toHaveBeenCalledWith('/api/v1/expert-runs/9/actions')
     expect(result.actions[0]).toEqual({
       id: 78, actionType: 'smart_home_device', status: 'pending', title: '开阳台灯', description: '打开阳台灯',
-      deviceId: 5, deviceName: '阳台灯', capability: 'power', targetValue: { on: true }
+      deviceId: 5, deviceName: '阳台灯', capability: 'power', targetValue: { on: true },
+      plan: { segments: [], audio: undefined, totalDuration: undefined }
     })
     expect(result.events[0].message).toBe('已排队')
   })

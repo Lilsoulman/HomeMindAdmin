@@ -6,7 +6,7 @@
 > **计划性质：** 当前实施快照。仅维护已完成项和下一步，不保留迭代历史，也不改变产品或接口契约。
 
 最近同步：2026-08-09  
-当前目标：在已发布的 `/api/v1` 契约上依次交付个人 Connector/OAuth（已完成）与我的专家（自建专家）。
+当前目标：P2 快速剪辑优化（素材上传 + 对话式引导 + 方案可视化）已交付，P3 思维导图工具与 P4 Skill 目录查看已排期（依赖后端 B33/B34）。
 
 ## 1. 不变基线
 
@@ -36,12 +36,22 @@
 | 质量与可访问性 | 已完成 | 权限守卫角色×权限矩阵、确认幂等（页面级新键）、同步/Run 终态轮询（终态/离开页/失败停止）、页面 loading/empty/error+retry 组件测试齐备（`npm run test:unit` 149 项）；键盘可达性（专家列表可聚焦+Enter、focus-visible 样式）、窄屏断点（授权矩阵 900px 单列）已补；静态扫描确认源码与构建产物无敏感字段硬编码、无第三方直连、PromptTemplate 未被前端消费；修复 `this.homeId` 方法引用当值使用的真实缺陷；工程基线补充 `@vue/vue2-jest` 与 jest preset 支持组件测试 |
 | 个人 Connector/OAuth | 已完成 | 我的连接（仅本人可见）脱敏展示个人实例、Provider 选择发起授权（`POST /connector-providers/{code}/authorizations` + 整页跳转 `AuthorizationUrl`，会话 ID 存 `sessionStorage` 仅用于回跳定位）、`/oauth/callback` 回调路由（查询一次会话状态后回连接页）、撤销（二次确认 + `DELETE /connector-authorizations/{id}`，幂等）与 revoked 重新授权；`connector.authorize` 加入 member 角色矩阵；Setup 向导文案指向个人授权入口；`npm run lint`、`npm run test:unit`（161 项）与 `npm run build` 通过；本地全链路联调依赖后端 `ConnectorOAuth:AllowedRedirectUris` 配置（含 `http://localhost:8080/oauth/callback`） |
 | 我的专家 | 已完成 | 用户端 `/app/experts` 仅列出本人自建专家（`scope=mine`，不泄露他人）；新建表单必填名称/分类/说明/角色设定/提示词，能力策略 JSON 前端校验；更新带 RowVersion、409 刷新；删除二次确认；PromptTemplate 永不回显（编辑需重新输入）；`expert.mine.write` 加入 member 角色矩阵；`npm run lint`、`npm run test:unit`（177 项）与 `npm run build` 通过 |
+| 快速剪辑 Skill（P2 对话式优化） | 已完成 | 工作台升级为分步对话式引导（素材→目标→方案→确认→导出）：素材支持浏览器上传（`POST /api/v1/clipping/materials`，FormData 去 JSON header、上传进度、素材卡片含时长/分辨率/大小、可移除）或路径输入（回填 `media_location`）；对话经 `POST /api/v1/clipping/chat` 无状态推进（context 回传、suggestions 快捷按钮：生成方案/确认方案/修改目标重新生成/重新剪辑）；方案以结构化时间线渲染（PlanTimeline：片段序列/总时长）；「修改目标重新生成」经 `POST /skills/runs/{runId}/revise`（幂等键）；确认/下载复用 B25 链路（readUrl 相对路径拼接 API 基址修正）；轮询/幂等/终态/离开页停止保留；`media.read` 与 `media.write` 加入 member 角色矩阵；源码与构建产物无 MCP 路径/Prompt 泄露；`npm run lint`、`npm run test:unit`（207 项）与 `npm run build` 通过；真实 MySQL 全链路联调通过（上传→chat→run→时间线→revise→确认→readToken 下载） |
 
 ## 3. 下一步
 
-| 优先级 | 交付 | 前置条件 | 最小验收 |
-| --- | --- | --- | --- |
-| P1 | 快速剪辑 Skill（V2.5） | 后端 B24/B25 契约发布（`api-implementation.md`/`frontend-api-integration.md` 字段级契约） | 工作台表单（素材位置/创作目标和指令）→ `POST /skills/quick-edit/runs` 创建 → 轮询至剪辑方案摘要 → Action 确认（幂等键）→ .draft 下载（readToken）；loading/empty/error/retry 齐备；源码与构建产物无 MCP 路径/Prompt 泄露；`npm run lint`、`npm run test:unit`、`npm run build` 全部通过 |
+P3 思维导图工具（`/app/tools/mindmap`，依赖后端 B33，Web 总设计 §6.8）：
+
+- 输入：粘贴 markdown 或本地 `.md` 文件（FileReader 本地读取，不上传服务端）；
+- 创建 Run：`POST /api/v1/skills/mindmap/runs`（UUID 幂等键，同步 completed）；
+- 渲染：markmap-lib/markmap-view 浏览器转换渲染交互视图（缩放/折叠/适配），vendor 资源本地化至 `public/vendor/markmap/`（与本地 `core/scripts/md2mindmap.mjs` 同版本，不进 webpack）；
+- 导出：SVG（实例 `exportSVG()`）/ PNG（canvas）/ 自包含 HTML（内联 vendor 资源，断网可开）。
+
+P4 Skill 目录查看（依赖后端 B34，Web 总设计 §6.9）：
+
+- 用户端 `/app/skills`（我的技能）：`scope=mine` 本人用户级技能列表与详情（Prompt 仅本人可见，只读）；
+- 开发端 `/console/experts` 新增「Skill」Tab：`scope=all` 分两组——平台级目录（key/分类/风险/所需权限/输入 schema）与成员技能（名称/成员/状态，Prompt 不回显）；
+- 权限边界：platform/all 服务端校验 owner/admin 角色，member/viewer 持有 `ai.read` 也 403；路由与菜单不向非 owner/admin 注册。
 
 ## 4. 工程约束
 

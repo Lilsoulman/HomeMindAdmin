@@ -9,6 +9,7 @@ import Family from '../views/app/Family.vue'
 import Favorites from '../views/app/Favorites.vue'
 import Connections from '../views/app/Connections.vue'
 import MyExperts from '../views/app/MyExperts.vue'
+import QuickEdit from '../views/app/QuickEdit.vue'
 import RunDetail from '../views/app/RunDetail.vue'
 import Setup from '../views/console/Setup.vue'
 import Connectors from '../views/console/Connectors.vue'
@@ -29,6 +30,7 @@ const appChildren = [
   { path: 'life/favorites', name: 'app-favorites', component: Favorites, meta: { title: '我的偏好', permission: 'life.favorite.read' } },
   { path: 'connections', name: 'app-connections', component: Connections, meta: { title: '我的连接', permission: 'connector.read' } },
   { path: 'experts', name: 'app-experts', component: MyExperts, meta: { title: '我的专家', permission: 'ai.read' } },
+  { path: 'media/quick-edit', name: 'app-quick-edit', component: QuickEdit, meta: { title: '快速剪辑', permission: 'media.read' } },
   { path: 'runs/:id', name: 'app-run-detail', component: RunDetail, meta: { title: '运行详情', permission: 'ai.run' } },
   { path: 'profile', name: 'app-profile', component: PagePlaceholder, meta: { title: '账户与会话', permission: 'identity.read', feature: '账户设置' } }
 ]

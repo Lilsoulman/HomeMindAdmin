@@ -58,11 +58,11 @@
       </el-dialog>
 
       <el-dialog title="扫码登录" :visible.sync="qrDialogVisible" width="420px" :close-on-click-modal="false" @close="stopQrPolling">
-        <p class="qr-auth-hint">请在小红书 App 中扫描二维码完成登录（当前为 Mock 环境）。</p>
+        <p class="qr-auth-hint">请在小红书 App 中扫描二维码完成登录。</p>
         <div class="qr-auth-body">
           <img v-if="qrDataUrl" :src="qrDataUrl" alt="登录二维码" class="qr-auth-qr">
           <p v-else-if="qrSession && qrSession.qrContent" class="qr-auth-placeholder">正在生成二维码…</p>
-          <p v-else class="qr-auth-placeholder">暂无二维码内容。</p>
+          <p v-else class="qr-auth-placeholder">二维码生成失败，请关闭窗口后重新发起授权。</p>
         </div>
         <p v-if="qrPolling" class="qr-auth-status"><i class="el-icon-loading" /> 等待扫码登录…</p>
       </el-dialog>
@@ -206,6 +206,10 @@ export default {
       this.qrPolling = true
       this.startQrPolling()
       if (session.qrContent) {
+        if (session.qrContent.startsWith('data:image/')) {
+          this.qrDataUrl = session.qrContent
+          return
+        }
         QRCode.toDataURL(session.qrContent, { width: 180, margin: 1 })
           .then((url) => { if (this.pageAlive) this.qrDataUrl = url })
           .catch(() => {})

@@ -120,6 +120,20 @@ describe('Connections view - QR auth flow', () => {
     expect(connectorApi.pollAuthorization).toHaveBeenCalledWith({ id: 2 })
   })
 
+  it('renders a QR image response directly without re-encoding it', async () => {
+    connectorApi.startPersonalAuthorization.mockResolvedValue({
+      sessionId: 2,
+      status: 'pending',
+      authorizationUrl: null,
+      qrContent: 'data:image/png;base64,QR'
+    })
+
+    await start('xhs')
+
+    expect(wrapper.find('.qr-auth-qr').attributes('src')).toBe('data:image/png;base64,QR')
+    expect(qrcode.toDataURL).not.toHaveBeenCalled()
+  })
+
   it('shows a placeholder and skips QR rendering when qrContent is empty', async () => {
     connectorApi.startPersonalAuthorization.mockResolvedValue({
       sessionId: 3,
@@ -132,7 +146,7 @@ describe('Connections view - QR auth flow', () => {
 
     expect(wrapper.vm.qrDialogVisible).toBe(true)
     expect(wrapper.find('.qr-auth-qr').exists()).toBe(false)
-    expect(wrapper.find('.qr-auth-placeholder').text()).toBe('暂无二维码内容。')
+    expect(wrapper.find('.qr-auth-placeholder').text()).toBe('二维码生成失败，请关闭窗口后重新发起授权。')
     expect(qrcode.toDataURL).not.toHaveBeenCalled()
   })
 

@@ -83,7 +83,7 @@ NexusMind Web 是家庭成员和家庭管理员在 PC 使用的控制台，不�
 | `/app/life/favorites` | 我的偏好 | 餐厅/旅行/素材收藏及可见性 |
 | `/app/connections` | 我的连接 | 已授权家庭 Connector 与本人个人实例（OAuth）脱敏状态；发起授权、撤销、重新授权 |
 | `/app/runs/:id` | 运行详情 | 可公开事件、影响、Action 确认、专家文件（附件）、时间线、生成文件下载——承接移动端移出的运行细节 |
-| `/app/media/quick-edit` | 快速剪辑 | 分步对话式引导（素材→目标→方案→确认→导出）：素材上传/路径输入、素材卡片、chat 引导、方案时间线、修订、Action 确认、.draft 草稿下载 |
+| `/app/media/quick-edit` | 快速剪辑 | 剪辑对话页（分步对话式引导：素材→目标→方案→确认→导出）：素材上传/路径输入、素材卡片、chat 引导、方案时间线、修改历史（版本标记）、修改指令增量更新、引擎进度指示、Action 确认、.draft 草稿下载（V2.8 演进见 §5） |
 | `/app/tools/mindmap` | 思维导图 | 粘贴或本地 .md 文件 → 交互式思维导图（缩放/折叠）→ 导出 SVG/PNG/自包含 HTML |
 | `/app/experts` | 我的专家 | 自建专家列表、新建、编辑、删除（仅创建者本人可见） |
 | `/app/skills` | 我的技能 | 本人用户级技能列表与详情（Prompt 仅本人可见，只读查看） |
@@ -113,7 +113,7 @@ NexusMind Web 是家庭成员和家庭管理员在 PC 使用的控制台，不�
 - 成员页展示 `active`、`away`、`permanently_left`、`deceased`；终态更正仅对有权限者开放，必须输入原因并二次确认。
 - Run 详情只显示可理解阶段、建议、Action 和结果；终态停止轮询，不显示 Prompt、思考链和原始日志。
 - 我的专家页仅列出并编辑 `owner_user_id=本人` 的自建专家（`scope=mine`）；新建表单必填名称与说明，可编辑自有策略；删除为软删除并二次确认、写家庭审计；编辑期间提示词不回显。
-- 快速剪辑页以分步对话式引导推进：素材支持浏览器上传（经 `POST /api/v1/clipping/materials` 登记，服务端落盘 + ffprobe 提取元数据，上传后回填素材路径）或本机/NAS 路径输入（可访问性由服务端校验，仅允许配置的素材根目录，越界 403）；对话经 `POST /api/v1/clipping/chat` 无状态推进（context 随请求回传、模板回复、suggestions 引导按钮）；对话达成目标后创建 Skill Run（UUID 幂等键）；方案以结构化时间线展示（片段序列/配乐/总时长）；「修改目标重新生成」经 `POST /skills/runs/{runId}/revise`（UUID 幂等键）；运行终态或离开页面停止轮询；剪辑方案 Action 确认幂等；草稿下载使用 10 分钟 readToken；不渲染 Prompt、思考链或 MCP 内部路径。
+- 快速剪辑页（剪辑对话页）以分步对话式引导推进：素材支持浏览器上传（经 `POST /api/v1/clipping/materials` 登记，服务端落盘 + ffprobe 提取元数据，上传后回填素材路径；素材卡片展示文件名/时长/分辨率，首版不生成缩略图）或本机/NAS 路径输入（可访问性由服务端校验，仅允许配置的素材根目录，越界 403）；对话经 `POST /api/v1/clipping/chat` 推进（无状态 context 随请求回传、模板回复、suggestions 引导按钮；V2.8 起语义升级为携带 `task_id` 引用 `clipping_tasks`）；对话达成目标后创建 Skill Run（UUID 幂等键）；方案以结构化时间线展示（片段序列/配乐/总时长，示意性可视化非真实视频预览）；**修改指令增量更新（V2.8）**：方案展示区提供快捷修改按钮（调整时长/更换风格/编辑片头/调整顺序/删除片段/新增素材/重新生成）与对话修改输入，修改指令沿用 `POST /skills/runs/{runId}/revise`（UUID 幂等键）执行，按粒度（参数调整/部分重做/全量重做）更新方案并标记修改历史版本；**引擎进度指示（V2.8）**：方案生成阶段展示可理解的引擎阶段（素材分析中/粗剪中/包装中/渲染中），不展示模型思考过程；运行终态或离开页面停止轮询；剪辑方案 Action 确认幂等；草稿下载使用 10 分钟 readToken；不渲染 Prompt、思考链或 MCP 内部路径。
 - 思维导图页（`/app/tools/mindmap`）为纯客户端转换：粘贴 markdown 或本地 `.md` 文件（FileReader 本地读取为文本，不上传服务端）→ `POST /api/v1/skills/mindmap/runs` 创建 Skill Run（UUID 幂等键，同步返回 completed）→ markmap-lib 在浏览器转换渲染交互视图；导出 SVG/PNG 来自 markmap-view 实例，「自包含 HTML」内联本地 vendor 资源；Run 记录在运行详情可追溯；不渲染 Prompt。
 
 ### 开发端
@@ -149,7 +149,7 @@ NexusMind Web 是家庭成员和家庭管理员在 PC 使用的控制台，不�
 
 `/app/runs/:id` 运行详情展示可公开事件、建议、Action 与结果；Action 状态为 `pending|confirmed|rejected|executing|executed|failed|cancelled`。写操作（`POST /api/v1/expert-runs/{runId}/actions/{actionId}/confirm`）必须使用新的 UUID 幂等键，提交期间禁用按钮；重复键返回既有结果，绝不重复执行。终态停止轮询；跨用户或跨租户的 Run 返回 `404`。
 
-Skill 独立运行（SourceType=skill，如快速剪辑）复用同一运行视图与确认链路：`POST /api/v1/skills/{skillCode}/runs` 创建后按既有 Run 详情轮询，剪辑方案以结构化时间线展示（B30 视图：片段序列/配乐/总时长）；不满意可经 `POST /skills/runs/{runId}/revise` 修订指令重新生成方案（B31，UUID 幂等键）；Action 确认后登记生成文件，经 readToken 下载；素材经 `POST /api/v1/clipping/materials` 上传登记或路径输入；对话引导经 `POST /api/v1/clipping/chat` 无状态推进（只引导不执行）；不渲染 MCP 内部路径或 Prompt。
+Skill 独立运行（SourceType=skill，如快速剪辑）复用同一运行视图与确认链路：`POST /api/v1/skills/{skillCode}/runs` 创建后按既有 Run 详情轮询，剪辑方案以结构化时间线展示（B30 视图：片段序列/配乐/总时长）；不满意可经 `POST /skills/runs/{runId}/revise` 修订指令重新生成方案（B31，UUID 幂等键；V2.8 演进为增量修改——7 维度修改指令映射 + 3 级粒度：参数调整/部分重做/全量重做，修改历史以版本标记展示）；Action 确认后登记生成文件，经 readToken 下载；素材经 `POST /api/v1/clipping/materials` 上传登记或路径输入；对话引导经 `POST /api/v1/clipping/chat` 推进（只引导不执行；V2.8 起携带 `task_id` 引用 `clipping_tasks` 会话状态）；方案生成阶段展示可理解的引擎进度（素材分析/粗剪/包装/渲染，V2.8 四引擎流水线）；不渲染 MCP 内部路径或 Prompt。
 
 ### 6.4 个人生活专家
 

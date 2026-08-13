@@ -17,7 +17,9 @@ export default {
         { index: '/app/life/favorites', label: '我的偏好', icon: 'el-icon-star-off', permission: 'life.favorite.read' },
         { index: '/app/connections', label: '我的连接', icon: 'el-icon-connection', permission: 'connector.read' },
         { index: '/app/experts', label: '我的专家', icon: 'el-icon-magic-stick', permission: 'ai.read' },
+        { index: '/app/skills', label: '我的技能', icon: 'el-icon-cpu', permission: 'ai.skills.read' },
         { index: '/app/media/quick-edit', label: '快速剪辑', icon: 'el-icon-video-camera', permission: 'media.read' },
+        { index: '/app/tools/mindmap', label: '思维导图', icon: 'el-icon-share', permission: 'mindmap.read' },
         { index: '/app/connections/xhs', label: '小红书工作台', icon: 'el-icon-edit-outline', permission: 'connector.read' }
       ]
     }

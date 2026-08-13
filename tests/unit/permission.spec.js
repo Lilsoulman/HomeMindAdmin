@@ -5,7 +5,7 @@ const viewerReadOnly = [
   'confirmation.read', 'life.favorite.read', 'connector.read', 'automation.read', 'ai.read'
 ]
 
-const memberWrites = ['family.write', 'confirmation.write', 'life.favorite.write', 'ai.run', 'media.read', 'expert.mine.write']
+const memberWrites = ['family.write', 'confirmation.write', 'life.favorite.write', 'ai.run', 'media.read', 'mindmap.read', 'expert.mine.write']
 
 const adminOnlyWrites = [
   'connector.write', 'automation.write', 'tenant.member.manage',

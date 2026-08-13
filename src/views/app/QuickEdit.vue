@@ -48,6 +48,12 @@
         </div>
       </template>
 
+      <section v-if="!run" class="quick-edit-engine-options" aria-label="可选生成引擎">
+        <el-checkbox v-model="useSeedance">使用 Seedance 生成补充画面（可选）</el-checkbox>
+        <p v-if="useSeedance">此项可能产生额外费用；未完成确认时不会启用。</p>
+        <el-checkbox v-if="useSeedance" v-model="seedanceCostConfirmed">我已确认可能产生额外费用</el-checkbox>
+      </section>
+
       <template v-if="run">
         <div class="panel-heading">
           <el-tag :type="statusTagType(run.status)" effect="plain">{{ statusLabel(run.status) }}</el-tag>
@@ -59,9 +65,33 @@
           <div v-if="run.finishedAt"><dt>结束时间</dt><dd>{{ formatTime(run.finishedAt) }}</dd></div>
         </dl>
 
+        <section v-if="engineProgress.length" class="quick-edit-progress" aria-label="剪辑引擎进度">
+          <p class="eyebrow">引擎进度</p>
+          <ul class="quick-edit-engine-list">
+            <li v-for="stage in engineProgress" :key="stage.key">
+              <strong>{{ stage.label }}</strong>
+              <el-tag size="mini" effect="plain" :type="engineStatusTagType(stage.status)">{{ engineStatusLabel(stage.status) }}</el-tag>
+              <span v-if="stage.message">{{ stage.message }}</span>
+            </li>
+          </ul>
+        </section>
+
         <template v-if="actions.length">
           <header class="panel-heading run-section-heading"><div><p class="eyebrow">方案时间线</p><h2>剪辑方案</h2></div></header>
           <PlanTimeline :plan="firstActionPlan" />
+          <section v-if="versionHistory.length" class="quick-edit-history" aria-label="修改历史">
+            <p class="eyebrow">修改历史</p>
+            <ul>
+              <li v-for="item in versionHistory" :key="item.version">
+                <el-tag size="mini" effect="plain">{{ versionLabel(item.version) }}</el-tag>
+                <span>{{ item.description || '方案已更新' }}</span>
+                <time v-if="item.createdAt">{{ formatTime(item.createdAt) }}</time>
+              </li>
+            </ul>
+          </section>
+          <div v-if="canRevise" class="quick-edit-revise-shortcuts">
+            <el-button v-for="shortcut in reviseShortcuts" :key="shortcut" size="mini" plain :disabled="revising || confirmingId !== null" @click="openReviseDialog(shortcut)">{{ shortcut }}</el-button>
+          </div>
           <ul class="run-action-list">
             <li v-for="action in actions" :key="action.id">
               <div class="run-action-list__head">
@@ -73,7 +103,7 @@
                 <el-button size="mini" type="primary" :loading="confirmingId === action.id" :disabled="confirmingId !== null" @click="confirmAction(action)">
                   确认生成草稿
                 </el-button>
-                <el-button size="mini" :disabled="revising || confirmingId !== null" @click="openReviseDialog">修改目标重新生成</el-button>
+                <el-button size="mini" :disabled="revising || confirmingId !== null" @click="openReviseDialog()">修改方案</el-button>
               </div>
             </li>
           </ul>
@@ -99,11 +129,11 @@
         <p v-else>暂无事件。</p>
       </template>
 
-      <el-dialog title="修改创作目标" :visible.sync="reviseDialogVisible" width="480px">
-        <el-input v-model="reviseInstruction" type="textarea" :rows="3" placeholder="例如：改成横屏 60 秒，加配乐" />
+      <el-dialog title="修改剪辑方案" :visible.sync="reviseDialogVisible" width="480px">
+        <el-input v-model="reviseInstruction" type="textarea" :rows="3" placeholder="例如：调整为横屏 60 秒，加配乐" />
         <span slot="footer">
           <el-button size="small" @click="reviseDialogVisible = false">取消</el-button>
-          <el-button size="small" type="primary" :loading="revising" :disabled="!reviseInstruction.trim()" @click="revisePlan">重新生成方案</el-button>
+          <el-button size="small" type="primary" :loading="revising" :disabled="!reviseInstruction.trim()" @click="revisePlan">提交修改</el-button>
         </span>
       </el-dialog>
     </section>
@@ -111,7 +141,7 @@
 </template>
 
 <script>
-import { chatClipping, confirmSkillAction, createSkillRun, getFileReadToken, reviseSkillRun } from '../../api/skill'
+import { chatClipping, confirmSkillAction, createSkillRun, getClippingTask, getFileReadToken, reviseSkillRun } from '../../api/skill'
 import { getRun, getRunActions, getRunEvents } from '../../api/expert'
 import { createIdempotencyKey } from '../../utils/idempotency'
 import MediaFileUpload from '../../components/media/MediaFileUpload.vue'
@@ -131,6 +161,15 @@ const ACTION_SUGGESTIONS = {
   重新剪辑: 'reset'
 }
 
+const REVISE_SHORTCUTS = ['调整时长', '更换风格', '编辑片头', '调整顺序', '删除片段', '新增素材', '重新生成']
+const ENGINE_STAGES = [
+  { key: 'video_use', label: '素材分析与粗剪' },
+  { key: 'seedance', label: '补充画面（可选）' },
+  { key: 'hyperframes', label: '视觉包装' },
+  { key: 'remotion', label: '渲染编排（可选）' },
+  { key: 'draft', label: '草稿生成' }
+]
+
 export default {
   components: { MediaFileUpload, PlanTimeline },
   props: {
@@ -143,10 +182,13 @@ export default {
         { role: 'ai', text: '你好，我是快速剪辑助手。上传素材或填入素材路径，然后告诉我想要的剪辑效果，我来帮你生成剪辑方案与剪映草稿。' }
       ],
       chatContext: null,
+      clippingTask: null,
       chatThinking: false,
       suggestions: [],
       pathInput: '',
       materialPaths: [],
+      useSeedance: false,
+      seedanceCostConfirmed: false,
       run: null,
       submitting: false,
       events: [],
@@ -175,7 +217,38 @@ export default {
     firstActionPlan() {
       const action = this.actions.find((item) => item.plan && item.plan.segments && item.plan.segments.length)
       return action ? action.plan : { segments: [], audio: null, totalDuration: null }
+    },
+    canRevise() {
+      return this.run && !terminalStatuses.includes(this.run.status)
+    },
+    reviseShortcuts() {
+      return REVISE_SHORTCUTS
+    },
+    versionHistory() {
+      const history = this.run && Array.isArray(this.run.versionHistory) ? this.run.versionHistory : []
+      if (history.length) return history
+      return this.run && this.run.version ? [{ version: this.run.version, description: '当前方案', createdAt: this.run.createdAt }] : []
+    },
+    engineProgress() {
+      const latestEvents = this.events.reduce((result, event) => {
+        if (event.stage && ENGINE_STAGES.some((stage) => stage.key === event.stage)) result[event.stage] = event
+        return result
+      }, {})
+      const taskStage = this.clippingTask && this.clippingTask.engineStage
+      return ENGINE_STAGES.map((stage) => {
+        const event = latestEvents[stage.key]
+        const isCurrentTaskStage = !event && taskStage === stage.key
+        return Object.assign({}, stage, event || (isCurrentTaskStage ? { status: 'running' } : { status: 'waiting' }))
+      })
     }
+  },
+  watch: {
+    useSeedance(enabled) {
+      if (!enabled) this.seedanceCostConfirmed = false
+    }
+  },
+  mounted() {
+    this.restoreTaskFromRoute()
   },
   destroyed() {
     this.pageAlive = false
@@ -189,9 +262,13 @@ export default {
       this.messages.push({ role: 'user', text: message })
       this.chatThinking = true
       try {
-        const response = await chatClipping({ message, context: this.chatContext })
+        const response = await chatClipping({ message, context: this.chatContext, taskId: this.clippingTask && this.clippingTask.id })
         if (!this.pageAlive) return
         this.chatContext = response.context
+        if (response.taskId) {
+          this.clippingTask = Object.assign({}, this.clippingTask, { id: response.taskId })
+          this.syncTaskRoute(response.taskId)
+        }
         this.suggestions = response.suggestions || []
         this.messages.push({ role: 'ai', text: response.reply })
       } catch (error) {
@@ -236,10 +313,16 @@ export default {
         return
       }
       if (this.submitting) return
+      if (this.useSeedance && !this.seedanceCostConfirmed) {
+        this.$message.warning('请先确认 Seedance 可能产生的额外费用，或取消该选项。')
+        return
+      }
       this.submitting = true
       const instruction = this.chatContext && this.chatContext.goal
-      const inputJson = JSON.stringify(instruction ? { media_location: this.materialPaths[0], instruction } : { media_location: this.materialPaths[0] })
-      createSkillRun({ skillCode: 'quick-edit', inputJson, idempotencyKey: createIdempotencyKey() })
+      const input = instruction ? { media_location: this.materialPaths[0], instruction } : { media_location: this.materialPaths[0] }
+      if (this.useSeedance && this.seedanceCostConfirmed) input.allowSeedance = true
+      const inputJson = JSON.stringify(input)
+      createSkillRun({ skillCode: 'quick-edit', inputJson, idempotencyKey: createIdempotencyKey(), taskId: this.clippingTask && this.clippingTask.id })
         .then((run) => {
           if (!this.pageAlive) return
           this.run = run
@@ -261,7 +344,39 @@ export default {
         })
     },
     async refreshRunParts() {
-      await Promise.all([this.fetchEvents(), this.fetchActions()])
+      await Promise.all([this.fetchEvents(), this.fetchActions(), this.fetchClippingTask()])
+    },
+    async fetchClippingTask() {
+      if (!this.clippingTask || !this.clippingTask.id) return
+      const task = await getClippingTask({ taskId: this.clippingTask.id })
+      if (!this.pageAlive) return
+      this.clippingTask = task
+      this.materialPaths = task.materials
+      this.chatContext = Object.assign({}, this.chatContext, { materials: task.materials, goal: task.goal })
+      const runHistory = this.run && Array.isArray(this.run.versionHistory) ? this.run.versionHistory : []
+      if (this.run && !runHistory.length && task.versionHistory.length) {
+        this.run = Object.assign({}, this.run, { engineStage: task.engineStage, versionHistory: task.versionHistory })
+      }
+    },
+    async restoreTaskFromRoute() {
+      const taskId = Number(this.$route && this.$route.query.taskId)
+      if (!Number.isSafeInteger(taskId) || taskId <= 0) return
+      this.clippingTask = { id: taskId }
+      try {
+        await this.fetchClippingTask()
+        if (this.clippingTask.runId) {
+          this.run = await getRun({ id: this.clippingTask.runId })
+          await this.refreshRunParts()
+          this.startPollingIfNeeded()
+        }
+      } catch (error) {
+        this.clippingTask = null
+        this.$message.error(error.status === 404 ? '剪辑任务不存在或你无权访问。' : (error.message || '恢复剪辑任务失败，请重试。'))
+      }
+    },
+    syncTaskRoute(taskId) {
+      if (!this.$router || !this.$route || String(this.$route.query.taskId) === String(taskId)) return
+      this.$router.replace({ query: Object.assign({}, this.$route.query, { taskId }) })
     },
     async fetchEvents() {
       const events = await getRunEvents({ id: this.run.id })
@@ -336,8 +451,8 @@ export default {
         this.confirmingId = null
       }
     },
-    openReviseDialog() {
-      this.reviseInstruction = (this.chatContext && this.chatContext.goal) || ''
+    openReviseDialog(shortcut) {
+      this.reviseInstruction = shortcut ? `${shortcut}：` : ''
       this.reviseDialogVisible = true
     },
     async revisePlan() {
@@ -349,7 +464,7 @@ export default {
         if (!this.pageAlive) return
         this.run = run
         await this.refreshRunParts()
-        this.$message.success('剪辑方案已按新目标重新生成。')
+        this.$message.success('修改已提交，正在更新剪辑方案。')
         this.startPollingIfNeeded()
         this.reviseDialogVisible = false
         if (this.chatContext) {
@@ -388,7 +503,15 @@ export default {
       this.confirmMessage = ''
       this.suggestions = []
       this.chatContext = null
+      this.clippingTask = null
       this.materialPaths = []
+      this.useSeedance = false
+      this.seedanceCostConfirmed = false
+      if (this.$router && this.$route && this.$route.query.taskId) {
+        const query = Object.assign({}, this.$route.query)
+        delete query.taskId
+        this.$router.replace({ query })
+      }
     },
     statusLabel(status) { return statusLabels[status] || status },
     statusTagType(status) { return statusTagTypes[status] || 'info' },
@@ -397,6 +520,13 @@ export default {
     eventTypeLabel(type) {
       return { queued: '已排队', started: '已开始', planning: '规划中', action: '动作', completed: '完成', failed: '失败', cancelled: '已取消', plan_revised: '方案已修订' }[type] || type
     },
+    engineStatusLabel(status) {
+      return { waiting: '待执行', queued: '已排队', running: '运行中', skipped: '已跳过', succeeded: '已完成', failed: '失败' }[status] || '待更新'
+    },
+    engineStatusTagType(status) {
+      return { running: 'warning', succeeded: 'success', failed: 'danger', skipped: 'info' }[status] || 'info'
+    },
+    versionLabel(version) { return `版本 ${version || '—'}` },
     formatTime(value) {
       if (!value) return ''
       return new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value))

@@ -1,4 +1,4 @@
-import { chatClipping, confirmSkillAction, createSkillRun, deleteClippingMaterial, getFileReadToken, reviseSkillRun, uploadClippingMaterial } from '../../src/api/skill'
+import { chatClipping, confirmSkillAction, createMindmapRun, createSkillRun, deleteClippingMaterial, getClippingTask, getFileReadToken, getSkill, listSkills, reviseSkillRun, uploadClippingMaterial } from '../../src/api/skill'
 
 jest.mock('../../src/utils/request', () => ({
   request: { get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() }
@@ -9,6 +9,25 @@ import { request } from '../../src/utils/request'
 describe('skill api mapping', () => {
   afterEach(() => jest.clearAllMocks())
 
+  it('lists B34 skills with scope and maps only catalog fields', async () => {
+    request.get.mockResolvedValue([{ Id: 3, Source: 'platform', Key: 'calendar.create', Name: '创建日历', Category: 'life', RiskLevel: 'L1', RequiredPermissions: ['calendar.write'], InputSchema: '{"title":"string"}', Prompt: 'must not leak' }])
+
+    const skills = await listSkills({ scope: 'all' })
+
+    expect(request.get).toHaveBeenCalledWith('/api/v1/skills', { params: { scope: 'all' } })
+    expect(skills).toEqual([{ id: 3, source: 'platform', key: 'calendar.create', name: '创建日历', category: 'life', riskLevel: 'L1', requiredPermissions: ['calendar.write'], inputSchema: '{"title":"string"}', memberName: undefined, status: undefined, updatedAt: undefined }])
+    expect(skills[0].prompt).toBeUndefined()
+  })
+
+  it('gets a personally visible skill detail', async () => {
+    request.get.mockResolvedValue({ Id: 4, Key: 'mine.note', Name: '我的笔记', Status: 'enabled', Prompt: 'private prompt' })
+
+    const skill = await getSkill({ id: 4 })
+
+    expect(request.get).toHaveBeenCalledWith('/api/v1/skills/4')
+    expect(skill).toMatchObject({ id: 4, key: 'mine.note', name: '我的笔记', status: 'enabled', prompt: 'private prompt' })
+  })
+
   it('creates a skill run with inputJson string and idempotency key', async () => {
     request.post.mockResolvedValue({
       Id: 55, Status: 'running', ResultSummary: null, CreatedAt: '2026-08-09T03:00:00Z', FinishedAt: null
@@ -17,14 +36,23 @@ describe('skill api mapping', () => {
     const run = await createSkillRun({
       skillCode: 'quick-edit',
       inputJson: '{"media_location":"/nas/videos/1.mp4","instruction":"竖屏 30 秒"}',
-      idempotencyKey: 'test-uuid'
+      idempotencyKey: 'test-uuid', taskId: 31
     })
 
     expect(request.post).toHaveBeenCalledWith('/api/v1/skills/quick-edit/runs', {
       idempotencyKey: 'test-uuid',
-      inputJson: '{"media_location":"/nas/videos/1.mp4","instruction":"竖屏 30 秒"}'
+      inputJson: '{"media_location":"/nas/videos/1.mp4","instruction":"竖屏 30 秒"}', taskId: 31
     })
     expect(run).toEqual({ id: 55, status: 'running', resultSummary: null, createdAt: '2026-08-09T03:00:00Z', finishedAt: null })
+  })
+
+  it('creates a mindmap run with Markdown and an idempotency key', async () => {
+    request.post.mockResolvedValue({ Id: 56, Status: 'completed', CreatedAt: '2026-08-12T03:00:00Z' })
+
+    const run = await createMindmapRun({ markdown: '# 家庭计划', idempotencyKey: 'test-uuid' })
+
+    expect(request.post).toHaveBeenCalledWith('/api/v1/skills/mindmap/runs', { idempotencyKey: 'test-uuid', markdown: '# 家庭计划' })
+    expect(run).toMatchObject({ id: 56, status: 'completed' })
   })
 
   it('confirms a skill action and maps camelCase fileId', async () => {
@@ -79,16 +107,25 @@ describe('skill api mapping', () => {
     request.post.mockResolvedValue({
       Reply: '好的，我来帮你剪视频。',
       Suggestions: ['上传素材', '填写素材路径'],
-      Context: { Step: 'collecting_materials', Materials: ['D:\\data\\a.mp4'], Goal: '竖屏 30 秒', PlanGenerated: null }
+      Context: { Step: 'collecting_materials', Materials: ['D:\\data\\a.mp4'], Goal: '竖屏 30 秒', PlanGenerated: null }, TaskId: 31
     })
 
-    const response = await chatClipping({ message: '帮我剪视频', context: null })
+    const response = await chatClipping({ message: '帮我剪视频', context: null, taskId: 31 })
 
-    expect(request.post).toHaveBeenCalledWith('/api/v1/clipping/chat', { message: '帮我剪视频', context: null })
+    expect(request.post).toHaveBeenCalledWith('/api/v1/clipping/chat', { message: '帮我剪视频', context: null, taskId: 31 })
     expect(response).toEqual({
       reply: '好的，我来帮你剪视频。',
       suggestions: ['上传素材', '填写素材路径'],
-      context: { step: 'collecting_materials', materials: ['D:\\data\\a.mp4'], goal: '竖屏 30 秒', planGenerated: null }
+      context: { step: 'collecting_materials', materials: ['D:\\data\\a.mp4'], goal: '竖屏 30 秒', planGenerated: null, taskId: undefined }, taskId: 31
     })
+  })
+
+  it('gets a clipping task with presentation-safe recovery fields', async () => {
+    request.get.mockResolvedValue({ Id: 31, RunId: 55, Status: 'reviewing', EngineStage: 'planning', Materials: ['D:\\data\\a.mp4'], Goal: '竖屏 30 秒', CurrentPlan: { totalDuration: 30 }, VersionHistory: [{ Version: 1, Plan: { totalDuration: 30 }, Change: '初始方案', ModifiedAt: '2026-08-13T03:00:00Z' }] })
+
+    const task = await getClippingTask({ taskId: 31 })
+
+    expect(request.get).toHaveBeenCalledWith('/api/v1/clipping/tasks/31')
+    expect(task).toMatchObject({ id: 31, runId: 55, engineStage: 'planning', materials: ['D:\\data\\a.mp4'], versionHistory: [{ version: 1, description: '初始方案' }] })
   })
 })

@@ -9,6 +9,7 @@ jest.mock('../../src/api/skill', () => ({
   getFileReadToken: jest.fn(),
   reviseSkillRun: jest.fn(),
   chatClipping: jest.fn(),
+  getClippingTask: jest.fn(),
   uploadClippingMaterial: jest.fn(),
   deleteClippingMaterial: jest.fn()
 }))
@@ -26,7 +27,9 @@ jest.mock('../../src/utils/idempotency', () => ({
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 const mocks = {
-  $message: { success: jest.fn(), warning: jest.fn(), error: jest.fn() }
+  $message: { success: jest.fn(), warning: jest.fn(), error: jest.fn() },
+  $route: { query: {} },
+  $router: { replace: jest.fn() }
 }
 
 const stubs = {
@@ -36,6 +39,7 @@ const stubs = {
   'el-input': { props: ['value', 'placeholder'], template: '<input :value="value" @input="$emit(\'input\', $event.target.value)" />' },
   'el-button': { props: ['disabled', 'loading', 'type', 'plain', 'size'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' },
   'el-tag': { template: '<span><slot /></span>' },
+  'el-checkbox': { props: ['value'], template: '<label><input :checked="value" type="checkbox" @change="$emit(\'input\', $event.target.checked)" /><slot /></label>' },
   MediaFileUpload: { template: '<div class="media-upload-stub" />' },
   PlanTimeline: { template: '<div class="plan-timeline-stub" />' }
 }
@@ -94,7 +98,7 @@ describe('QuickEdit view', () => {
     await findButton(wrapper, '发送').trigger('click')
     await flushPromises()
 
-    expect(skillApi.chatClipping).toHaveBeenCalledWith({ message: '帮我剪视频', context: null })
+    expect(skillApi.chatClipping).toHaveBeenCalledWith({ message: '帮我剪视频', context: null, taskId: null })
     expect(wrapper.vm.messages[wrapper.vm.messages.length - 1].text).toBe('好的，我来帮你剪视频。请先上传素材。')
     expect(wrapper.vm.suggestions).toEqual(['上传素材', '填写素材路径'])
     wrapper.destroy()
@@ -125,10 +129,23 @@ describe('QuickEdit view', () => {
     expect(skillApi.createSkillRun).toHaveBeenCalledWith({
       skillCode: 'quick-edit',
       inputJson: '{"media_location":"D:\\\\data\\\\探店.mp4","instruction":"竖屏 30 秒"}',
-      idempotencyKey: 'test-uuid-0001'
+      idempotencyKey: 'test-uuid-0001',
+      taskId: null
     })
     expect(wrapper.vm.run).toEqual(runningRun)
     expect(wrapper.vm.activeStep).toBe(3)
+    wrapper.destroy()
+  })
+
+  it('binds the task returned by chat and keeps it in the route', async () => {
+    skillApi.chatClipping.mockResolvedValue({ ...chatResponse, taskId: 31 })
+    const wrapper = shallowMount(QuickEdit, { mocks, stubs })
+    wrapper.vm.draft = '帮我剪视频'
+
+    await wrapper.vm.send()
+
+    expect(wrapper.vm.clippingTask).toEqual({ id: 31 })
+    expect(mocks.$router.replace).toHaveBeenCalledWith({ query: { taskId: 31 } })
     wrapper.destroy()
   })
 
@@ -160,11 +177,42 @@ describe('QuickEdit view', () => {
     wrapper.vm.reviseDialogVisible = true
     await wrapper.vm.$nextTick()
 
-    await findButton(wrapper, '重新生成方案').trigger('click')
+    await findButton(wrapper, '提交修改').trigger('click')
     await flushPromises()
 
     expect(skillApi.reviseSkillRun).toHaveBeenCalledWith({ runId: 55, instruction: '竖屏 60 秒', idempotencyKey: 'test-uuid-0001' })
     expect(wrapper.vm.reviseDialogVisible).toBe(false)
+    wrapper.destroy()
+  })
+
+  it('renders B36 public engine progress and change history without private engine data', async () => {
+    const wrapper = shallowMount(QuickEdit, { mocks, stubs })
+    wrapper.vm.run = { ...runningRun, version: 3, versionHistory: [{ version: 3, description: '调整片头', createdAt: '2026-08-09T03:10:00Z' }] }
+    wrapper.vm.events = [{ stage: 'video_use', status: 'succeeded', message: '素材已分析' }, { stage: 'seedance', status: 'skipped', message: '未启用' }, { stage: 'hyperframes', status: 'running', message: '正在包装' }]
+    wrapper.vm.actions = [pendingAction]
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.engineProgress.map((stage) => stage.label)).toEqual(['素材分析与粗剪', '补充画面（可选）', '视觉包装', '渲染编排（可选）', '草稿生成'])
+    expect(wrapper.vm.engineProgress[1].status).toBe('skipped')
+    expect(wrapper.text()).toContain('引擎进度')
+    expect(wrapper.text()).toContain('已跳过')
+    expect(wrapper.text()).toContain('版本 3')
+    expect(wrapper.text()).toContain('调整片头')
+    expect(wrapper.text()).toContain('调整时长')
+    wrapper.destroy()
+  })
+
+  it('only passes Seedance consent after explicit cost confirmation', async () => {
+    skillApi.createSkillRun.mockResolvedValue(runningRun)
+    expertApi.getRunActions.mockResolvedValue({ events: [], actions: [] })
+    const wrapper = shallowMount(QuickEdit, { mocks, stubs })
+    wrapper.vm.materialPaths = ['D:\\data\\探店.mp4']
+    wrapper.vm.useSeedance = true
+    wrapper.vm.seedanceCostConfirmed = true
+
+    await wrapper.vm.generatePlan()
+
+    expect(skillApi.createSkillRun).toHaveBeenCalledWith(expect.objectContaining({ inputJson: '{"media_location":"D:\\\\data\\\\探店.mp4","allowSeedance":true}' }))
     wrapper.destroy()
   })
 

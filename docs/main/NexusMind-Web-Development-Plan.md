@@ -5,8 +5,8 @@
 > **接口依据：** `D:\HomeMind\core\docs\frontend-api-integration.md`
 > **计划性质：** 当前实施快照。仅维护已完成项和下一步，不保留迭代历史，也不改变产品或接口契约。
 
-最近同步：2026-08-12
-当前目标：P2 快速剪辑优化（素材上传 + 对话式引导 + 方案可视化）已交付；P3 思维导图工具与 P4 Skill 目录查看已排期（依赖后端 B33/B34）；P5 视频剪辑 V2.8 演进（剪辑对话页修改指令/修改历史/引擎进度）已排期（依赖后端 V2.8 切片）。小红书功能因平台警告风险暂停开发，不进入当前排期，也不继续联调或发布。
+最近同步：2026-08-13
+当前目标：P5 剪辑任务持久化与 B36 四引擎事件前端验收已完成；等待后端部署后以非敏感本地样片完成参数调整、部分重做、全量重做联调。美团旅行作为平台许可、真实 Token 与本地后端 MTR-1a 通过后的下一业务候选，N100 迁移在本地闭环通过后单独验收。HA MCP Web 体验按后端 H1-H5、M1-M2 契约分片解锁；小红书功能因平台警告风险暂停开发，不进入当前排期，也不继续联调或发布。
 
 ## 1. 不变基线
 
@@ -17,6 +17,7 @@
 - access token 仅存入 `sessionStorage`；在当前后端仍将 refresh token 返回给前端的阶段，refresh token 只保留运行内存，刷新页面或进程重启后不能静默续期。生产切换到 Secure/HttpOnly/SameSite Cookie 刷新契约后再调整；
 - 所有写操作创建新的 UUID 幂等键；确认、连接器同步和 Run 轮询必须在离开页面或终态时清理；
 - 所有异步界面必须具备 loading、empty、error、retry。每个阶段通过 `npm run lint`、`npm run test:unit` 和 `npm run build`。
+- HA/MCP 只作为 Connector 内部实现：普通成员不看到第二套工具入口，浏览器不直连 HA/MCP，也不展示原始 entity_id、service、Tool 参数、manifest schema 或 `state_changed` 载荷。
 
 ## 2. 已完成
 
@@ -37,28 +38,46 @@
 | 个人 Connector/OAuth | 已完成 | 我的连接（仅本人可见）脱敏展示个人实例、Provider 选择发起授权（`POST /connector-providers/{code}/authorizations` + 整页跳转 `AuthorizationUrl`，会话 ID 存 `sessionStorage` 仅用于回跳定位）、`/oauth/callback` 回调路由（查询一次会话状态后回连接页）、撤销（二次确认 + `DELETE /connector-authorizations/{id}`，幂等）与 revoked 重新授权；`connector.authorize` 加入 member 角色矩阵；Setup 向导文案指向个人授权入口；`npm run lint`、`npm run test:unit`（161 项）与 `npm run build` 通过；本地全链路联调依赖后端 `ConnectorOAuth:AllowedRedirectUris` 配置（含 `http://localhost:8080/oauth/callback`） |
 | 我的专家 | 已完成 | 用户端 `/app/experts` 仅列出本人自建专家（`scope=mine`，不泄露他人）；新建表单必填名称/分类/说明/角色设定/提示词，能力策略 JSON 前端校验；更新带 RowVersion、409 刷新；删除二次确认；PromptTemplate 永不回显（编辑需重新输入）；`expert.mine.write` 加入 member 角色矩阵；`npm run lint`、`npm run test:unit`（177 项）与 `npm run build` 通过 |
 | 快速剪辑 Skill（P2 对话式优化） | 已完成 | 工作台升级为分步对话式引导（素材→目标→方案→确认→导出）：素材支持浏览器上传（`POST /api/v1/clipping/materials`，FormData 去 JSON header、上传进度、素材卡片含时长/分辨率/大小、可移除）或路径输入（回填 `media_location`）；对话经 `POST /api/v1/clipping/chat` 无状态推进（context 回传、suggestions 快捷按钮：生成方案/确认方案/修改目标重新生成/重新剪辑）；方案以结构化时间线渲染（PlanTimeline：片段序列/总时长）；「修改目标重新生成」经 `POST /skills/runs/{runId}/revise`（幂等键）；确认/下载复用 B25 链路（readUrl 相对路径拼接 API 基址修正）；轮询/幂等/终态/离开页停止保留；`media.read` 与 `media.write` 加入 member 角色矩阵；源码与构建产物无 MCP 路径/Prompt 泄露；`npm run lint`、`npm run test:unit`（207 项）与 `npm run build` 通过；真实 MySQL 全链路联调通过（上传→chat→run→时间线→revise→确认→readToken 下载） |
+| 快速剪辑 Skill（P5 V2.8 界面适配） | 已完成 | 剪辑对话请求透传 `task_id`；运行 DTO 消费可公开的 `engineStage`、版本号与 `versionHistory`，不消费引擎内部数据；时间线下提供调整时长/风格/片头/顺序/片段/素材/重生成快捷修改入口，仍复用 `POST /skills/runs/{runId}/revise` 与 UUID 幂等键；B36 仅按公开事件的 `video_use/seedance/hyperframes/remotion/draft` 和状态渲染进度，跳过或未配置不表示视频已生成；Seedance 默认关闭，须主动勾选并确认成本后才传 `allowSeedance=true`。Node 20.18 环境下 `lint`、233 项 `unit` 与 `build` 已通过；本地后端部署验证待执行。 |
+| 思维导图工具（P3） | 已完成 | `/app/tools/mindmap` 支持粘贴 Markdown 与 FileReader 本地读取 `.md`（不上传文件）；浏览器内以本地化 `markmap-lib`/`markmap-view`/d3 vendor 转换、缩放、拖拽、折叠与适配，未进 webpack；创建 `POST /api/v1/skills/mindmap/runs` 记录 Run（UUID 幂等键），无 Prompt 渲染或本地持久化；支持 SVG、PNG 与内联 vendor 的断网自包含 HTML 导出；`mindmap.read` 加入 member 权限矩阵，viewer 无法访问。 |
+| Skill 目录查看（P4） | 已完成 | 用户端 `/app/skills` 仅以 `scope=mine` 查看本人用户级技能与只读详情（Prompt 仅该详情消费）；开发端 `/console/experts` 新增 Skill Tab，以 `scope=all` 区分平台级目录（key/分类/风险/所需权限/输入 schema）与成员技能（名称/成员/状态），不回显成员 Prompt；`ai.skills.read` 加入 member/viewer 权限矩阵，平台/all 仍由服务端角色校验。`npm run lint`、`npm run test:unit`（230 项）与 `npm run build` 通过。 |
 
 ## 3. 下一步
 
-P3 思维导图工具（`/app/tools/mindmap`，依赖后端 B33，Web 总设计 §6.8）：
+P5 后端联调（依赖后端 V2.8 切片，产品总设计 §7.1、Web 总设计 §5）：
 
-- 输入：粘贴 markdown 或本地 `.md` 文件（FileReader 本地读取，不上传服务端）；
-- 创建 Run：`POST /api/v1/skills/mindmap/runs`（UUID 幂等键，同步 completed）；
-- 渲染：markmap-lib/markmap-view 浏览器转换渲染交互视图（缩放/折叠/适配），vendor 资源本地化至 `public/vendor/markmap/`（与本地 `core/scripts/md2mindmap.mjs` 同版本，不进 webpack）；
-- 导出：SVG（实例 `exportSVG()`）/ PNG（canvas）/ 自包含 HTML（内联 vendor 资源，断网可开）。
+- B35 与 B36 Web 契约已接入并验收：任务 URL 恢复、任务/Run 轮询、安全版本历史及四引擎公开事件渲染均已实现；Node 20.18 下 `lint`、`unit`（233 项）与 `build` 已通过；
+- 后端部署 B36 后，以非敏感本地样片验证参数调整、部分重做、全量重做各自的服务端反馈、`failed/skipped` 安全状态与轮询终止；
+- 边界不变：素材卡片首版不生成缩略图、方案时间线为示意性可视化，不做一键成片。
 
-P4 Skill 目录查看（依赖后端 B34，Web 总设计 §6.9）：
+HA MCP Web 主线（Web 总设计 §7.8；严格跟随后端 H1-H5、M1-M2 发布，不并行虚构接口）：
 
-- 用户端 `/app/skills`（我的技能）：`scope=mine` 本人用户级技能列表与详情（Prompt 仅本人可见，只读）；
-- 开发端 `/console/experts` 新增「Skill」Tab：`scope=all` 分两组——平台级目录（key/分类/风险/所需权限/输入 schema）与成员技能（名称/成员/状态，Prompt 不回显）；
-- 权限边界：platform/all 服务端校验 owner/admin 角色，member/viewer 持有 `ai.read` 也 403；路由与菜单不向非 owner/admin 注册。
+| 顺序 | Web 切片 | 页面与组件 | 后端依赖 | 最小验收 |
+| --- | --- | --- | --- | --- |
+| W-H1 | MCP 运维只读基线 | Connector 详情「运行状态」Tab、`HaConnectorStatusCard`、`McpServerHealthPanel` | H1 runtime/manifest 脱敏 DTO | healthy/reconnecting/degraded/unavailable、重试和无权限状态可测；源码/DOM 无 Secret、命令、env 与完整 schema |
+| W-H2 | HA 发现与设备映射 | Connector 详情「设备映射」Tab、`HaDeviceMappingTable` | H2 标准设备/空间/能力 DTO | 搜索筛选、映射异常、空态和重试完整；entity_id/任意 service 不进入 ViewModel |
+| W-H3 | 实时状态体验 | 家庭概览设备异常摘要、设备最近状态与重连/降级条 | H3 聚合状态 DTO；SSE 或轮询契约 | 高频事件不会产生 Toast 风暴；离页清理订阅/轮询；断线恢复只呈现聚合状态 |
+| W-H4 | 受控设备 Action | Run 时间线、`ActionImpactDiff`、执行结果和 `result_unknown` | H4 Run Action 标准 DTO | 阶段可理解；超时不自动重放写操作；刷新可恢复终态；不展示 MCP trace/HA 响应 |
+| W-H5 | Approval Card 增强 | 确认中心与 Run 详情共用 `ConfirmationCard`/`RiskBadge` | H5 结构化 Confirmation + L1 Grant | L1 可选本 Run 同类授权；L2/L3 永远逐项；过期/409/重复提交/跨家庭/无权限覆盖 |
+| W-M1 | Context Snapshot | Run 详情 `ContextSnapshotDrawer` | M1 Snapshot 只读 API | 显示版本/哈希/冻结时间/引用摘要；个人受限引用不泄露；不展示 Prompt |
+| W-M2 | Memory Candidate | 家庭知识页「记忆候选」Tab、`MemoryCandidateCard` | M2 list/resolve API | personal/family 隔离；接受/编辑/拒绝幂等；敏感或冲突候选不得批量自动接受 |
 
-P5 视频剪辑 V2.8 演进（依赖后端 V2.8 切片，产品总设计 §7.1、Web 总设计 §5）：
+执行规则：W-H1 可以在 H1 API 发布后独立交付；W-H2/W-H3 可连续实现；W-H4 先完成只读运行展示，再由 W-H5 开放增强审批；W-M1/W-M2 不阻塞 HA 设备主链路。每个切片都先补 `api/` 映射和 ViewModel 单测，再补页面/组件测试，最后执行 lint、unit、build；未发布字段采用“功能隐藏”而不是假数据。
 
-- 剪辑对话页新增**修改指令**交互：方案时间线下方快捷修改按钮（调整时长/更换风格/编辑片头/调整顺序/删除片段/新增素材/重新生成）+ 对话修改输入，修改沿用 `POST /skills/runs/{runId}/revise`（UUID 幂等键），按粒度反馈（参数调整秒级/部分重做数秒/全量重做数十秒）；
-- 新增**修改历史**：版本标记展示（当前版本号 + 变更说明），V2.8 起数据来源为后端 `clipping_tasks.version_history`（`task_id` 引用）；
-- 新增**引擎进度指示**：方案生成阶段展示可理解阶段（素材分析中/粗剪中/包装中/渲染中），对应后端四引擎流水线事件，不展示模型思考过程；
-- 边界不变：素材卡片首版不生成缩略图、方案时间线为示意性可视化；对话经 `POST /api/v1/clipping/chat` 推进（携带 `task_id`）。
+后续 P2 参考项：Skill Candidate 沿用 Memory Candidate 的审核交互；Workflow DAG 只借鉴 Hermes Studio 的画布与拓扑层展示，后端仍是编排事实源。没有 Skill Curator/Workflow 版本 API 前不注册路由。
+
+美团生活服务 Web 候选计划（Web 总设计 §7.9；未发布 API 不实现模拟页面）：
+
+| 顺序 | Web 切片 | 页面与组件 | 后端依赖 | 最小验收 |
+| --- | --- | --- | --- | --- |
+| W-MTR-1 | 旅行个人连接 | `/app/connections/meituan-travel`、`MeituanTravelConnectionCard`；配置、更新、撤销和脱敏状态 | 本地 MTR-1a 连接 API、个人隔离和受控本机密钥存储已验收 | Token 仅一次性 HTTPS 提交、提交后清空；不出现在 storage/Vuex/DOM/日志；本人以外访问不泄露；撤销二次确认与重试状态完整 |
+| W-MTR-2 | 家庭周末出游工作台 | `/app/life/travel`、`TravelSearchForm`、`TravelRunStatus`、`TravelPlanSummary`、`MeituanSupplyList` | 本地 MTR-1a 查询 Run；日历/待办 Action 依赖 MTR-2 | 异步 Run 轮询在终态/离页停止；AI 摘要与原始价格等供给分区；日历 L1 确认幂等；外跳只能用户点击且不显示支付成功 |
+| W-MTR-3 | N100 部署回归 | 不新增页面；只验证现有旅行连接与工作台在 N100 后端环境的兼容性 | 后端 MTR-1b | API 契约、权限、轮询、错误显示与敏感字段边界均与本地 MTR-1a 一致；不为硬件差异加入前端分支 |
+| W-MTP-1 | 跑腿费用预览 | 不排期 | MTP-1、账户/地址簿/POI/删除合规均通过 | 未满足前不注册路由、不请求地址簿、不展示订单入口 |
+| W-MTP-2 | 跑腿订单 | 不排期 | MTP-2 与 L3/高额二次确认 API 发布 | 预览与提交参数一致性由服务端拒绝不一致请求；支付仅外跳，前端不保存订单敏感信息 |
+| W-MTC-1 | 分销推广/领券 | 长期不排期 | 分销资格、条款、隐私/营销审查、订阅/退订/清除机制全部通过 | 未通过时没有入口、营销提示或主动提醒；仅记录评审结论 |
+
+执行规则：W-MTR-1 必须先于 W-MTR-2；每个切片先完成 `api/` 的 DTO→ViewModel 映射与敏感字段静态扫描，再补页面和组件测试，最后执行 lint、unit、build。跑腿与领券不因旅行上线自动解锁。
 
 小红书功能：**暂停**。
 

@@ -9,7 +9,9 @@ import Family from '../views/app/Family.vue'
 import Favorites from '../views/app/Favorites.vue'
 import Connections from '../views/app/Connections.vue'
 import MyExperts from '../views/app/MyExperts.vue'
+import MySkills from '../views/app/MySkills.vue'
 import QuickEdit from '../views/app/QuickEdit.vue'
+import Mindmap from '../views/app/Mindmap.vue'
 import XhsWorkspace from '../views/app/XhsWorkspace.vue'
 import RunDetail from '../views/app/RunDetail.vue'
 import Setup from '../views/console/Setup.vue'
@@ -31,7 +33,9 @@ const appChildren = [
   { path: 'life/favorites', name: 'app-favorites', component: Favorites, meta: { title: '我的偏好', permission: 'life.favorite.read' } },
   { path: 'connections', name: 'app-connections', component: Connections, meta: { title: '我的连接', permission: 'connector.read' } },
   { path: 'experts', name: 'app-experts', component: MyExperts, meta: { title: '我的专家', permission: 'ai.read' } },
+  { path: 'skills', name: 'app-skills', component: MySkills, meta: { title: '我的技能', permission: 'ai.skills.read' } },
   { path: 'media/quick-edit', name: 'app-quick-edit', component: QuickEdit, meta: { title: '快速剪辑', permission: 'media.read' } },
+  { path: 'tools/mindmap', name: 'app-mindmap', component: Mindmap, meta: { title: '思维导图', permission: 'mindmap.read' } },
   { path: 'runs/:id', name: 'app-run-detail', component: RunDetail, meta: { title: '运行详情', permission: 'ai.run' } },
   { path: 'profile', name: 'app-profile', component: PagePlaceholder, meta: { title: '账户与会话', permission: 'identity.read', feature: '账户设置' } },
   { path: 'connections/xhs', name: 'app-xhs-workspace', component: XhsWorkspace, meta: { title: '小红书工作台', permission: 'connector.read' } }

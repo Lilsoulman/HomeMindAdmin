@@ -14,6 +14,7 @@ export default {
         { index: '/app/confirmations', label: '确认中心', icon: 'el-icon-finished', permission: 'confirmation.read' },
         { index: '/app/activities', label: '管家动态', icon: 'el-icon-time', permission: 'steward.activity.read' },
         { index: '/app/family', label: '家庭成员与知识', icon: 'el-icon-user', permission: 'family.read' },
+        { index: '/app/memories', label: '学习记忆库', icon: 'el-icon-collection-tag', permission: 'memory.read' },
         { index: '/app/life/favorites', label: '我的偏好', icon: 'el-icon-star-off', permission: 'life.favorite.read' },
         { index: '/app/connections', label: '我的连接', icon: 'el-icon-connection', permission: 'connector.read' },
         { index: '/app/experts', label: '我的专家', icon: 'el-icon-magic-stick', permission: 'ai.read' },

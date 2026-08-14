@@ -6,6 +6,7 @@ import Overview from '../views/app/Overview.vue'
 import Confirmations from '../views/app/Confirmations.vue'
 import Activities from '../views/app/Activities.vue'
 import Family from '../views/app/Family.vue'
+import LearningMemories from '../views/app/LearningMemories.vue'
 import Favorites from '../views/app/Favorites.vue'
 import Connections from '../views/app/Connections.vue'
 import MyExperts from '../views/app/MyExperts.vue'
@@ -30,6 +31,7 @@ const appChildren = [
   { path: 'confirmations', name: 'app-confirmations', component: Confirmations, meta: { title: '确认中心', permission: 'confirmation.read' } },
   { path: 'activities', name: 'app-activities', component: Activities, meta: { title: '管家动态', permission: 'steward.activity.read' } },
   { path: 'family', name: 'app-family', component: Family, meta: { title: '家庭成员与知识', permission: 'family.read' } },
+  { path: 'memories', name: 'app-memories', component: LearningMemories, meta: { title: '学习记忆库', permission: 'memory.read' } },
   { path: 'life/favorites', name: 'app-favorites', component: Favorites, meta: { title: '我的偏好', permission: 'life.favorite.read' } },
   { path: 'connections', name: 'app-connections', component: Connections, meta: { title: '我的连接', permission: 'connector.read' } },
   { path: 'experts', name: 'app-experts', component: MyExperts, meta: { title: '我的专家', permission: 'ai.read' } },

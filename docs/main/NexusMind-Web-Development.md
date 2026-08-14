@@ -5,8 +5,8 @@
 > **后端依据：** `D:\HomeMind\core\docs\main\NexusMind-Backend-Development.md`、`docs/api-implementation.md`、`docs/frontend-api-integration.md`
 > **产品依据：** `D:\HomeMind\core\docs\main\NexusMind-Product-Master-Design.md`
 > **专项依据：** `D:\HomeMind\core\docs\main\NexusMind-Hermes-MCP-Fusion-Analysis.md`
-> **状态：** 仅完成设计，尚未初始化前端工程或编写业务代码。
-> **最后更新：** 2026-08-12
+> **状态：** 已完成现有 Web 工程与已发布 API 的前端实现；学习记忆库（M3/W-M3）前端已交付，等待后端 M3 真实环境联调。
+> **最后更新：** 2026-08-14
 
 ## 1. 产品定位
 
@@ -63,6 +63,7 @@ NexusMind Web 是家庭成员和家庭管理员在 PC 使用的控制台，不�
 | 本人偏好与未来个人授权 | 本人 | 本人 | 本人可见范围内只读 |
 | 确认项 | 按 `confirmation.write` | 按 `confirmation.write` | 不可写 |
 | 家庭成员、知识、决策 | 管理 | 按 `family.read/write` | 只读 |
+| 学习记忆库 | 可查看本人记忆及有 `family.read` 权限的家庭记忆 | 可查看本人记忆及被授权家庭记忆 | 只读可见范围 |
 | 家庭 Connector 创建、测试、发现、同步、成员授权 | 可管理 | 仅已授权项只读 | 仅已授权项只读 |
 | 自动化、Skill/Expert 管理 | 按服务端策略 | 只读或无权 | 无权 |
 | Token、Cookie、`credential_ref`、供应商实体 ID | 永不显示 | 永不显示 | 永不显示 |
@@ -81,10 +82,11 @@ NexusMind Web 是家庭成员和家庭管理员在 PC 使用的控制台，不�
 | `/app/confirmations` | 确认中心 | L1/L2/L3 筛选、确认/拒绝、受限 L1 批量确认 |
 | `/app/activities` | 管家动态 | 游标分页、详情、可撤销活动 |
 | `/app/family` | 家庭成员与知识 | 成员状态、知识、决策记录；M2 发布后增加待审核记忆候选 Tab |
+| `/app/memories` | 学习记忆库 | 已接受、可召回的个人/家庭记忆；类型、作用域、时间与来源筛选；仅展示脱敏摘要和可见溯源 |
 | `/app/life/favorites` | 我的偏好 | 餐厅/旅行/素材收藏及可见性 |
 | `/app/connections` | 我的连接 | 已授权家庭 Connector 与本人个人实例（OAuth）脱敏状态；发起授权、撤销、重新授权 |
 | `/app/runs/:id` | 运行详情 | 可公开事件、影响、Action 确认、专家文件（附件）、时间线、生成文件下载；M1 发布后可查看 Context Snapshot 引用摘要 |
-| `/app/media/quick-edit` | 快速剪辑 | 剪辑对话页（分步对话式引导：素材→目标→方案→确认→导出）：素材上传/路径输入、素材卡片、chat 引导、方案时间线、修改历史（版本标记）、修改指令增量更新、引擎进度指示、Action 确认、.draft 草稿下载（V2.8 演进见 §5） |
+| `/app/media/quick-edit` | 快速剪辑 | 剪辑对话页（分步对话式引导：素材→目标→方案→确认→导出）：素材上传/路径输入/自动发现、素材卡片、chat 引导（含自然语言一句话解析）、方案时间线、修改历史（版本标记）、修改指令增量更新、引擎进度指示、Action 确认、**.draft 草稿下载 + 粗剪 mp4 预览/下载（V2.9 体验重构，见 §5）** |
 | `/app/tools/mindmap` | 思维导图 | 粘贴或本地 .md 文件 → 交互式思维导图（缩放/折叠）→ 导出 SVG/PNG/自包含 HTML |
 | `/app/experts` | 我的专家 | 自建专家列表、新建、编辑、删除（仅创建者本人可见） |
 | `/app/skills` | 我的技能 | 本人用户级技能列表与详情（Prompt 仅本人可见，只读查看） |
@@ -112,9 +114,10 @@ NexusMind Web 是家庭成员和家庭管理员在 PC 使用的控制台，不�
 - 连接页只显示名称、Provider、`status`、`authStatus`、最后同步/健康检查时间和本人范围；不显示 Token、Cookie、URL、`credentialRef`、供应商 ID 或原始错误。
 - 个人 OAuth 授权从"我的连接"页发起：选择 Provider → `POST /connector-providers/{code}/authorizations`（`redirectUri = 当前 origin + /oauth/callback`，须命中服务端白名单）→ 整页跳转服务端 `AuthorizationUrl`；回调 302 落回 `/oauth/callback`，该页仅读取会话状态、清理本地标记后返回连接页。发起前把会话 ID 写入 `sessionStorage`（仅用于回跳定位，非凭据），撤销经 `DELETE /connector-authorizations/{id}` 二次确认执行。
 - 成员页展示 `active`、`away`、`permanently_left`、`deceased`；终态更正仅对有权限者开放，必须输入原因并二次确认。
+- 学习记忆库（`/app/memories`）是独立的长期学习结果展示页，借鉴 Hermes Studio 的记忆可见性：按 `personal|family` 作用域、偏好/事实/决策类型、活跃/已归档状态、更新时间与来源筛选，卡片展示摘要、作用域、置信度/稳定性、最近学习时间、失效时间和来源 Run/Conversation 的脱敏引用。个人记忆只返回本人；家庭记忆由服务端按 `family.read` 过滤；受限来源仅显示计数，不显示原文、其他成员资料、完整会话、Prompt、思维过程、供应商内容或 N97 派生索引。该页只读，不直接改写记忆；纠正、接受、编辑后接受和拒绝仍只在 `/app/family` 的「记忆候选」Tab 按 M2 契约完成。
 - Run 详情只显示可理解阶段、建议、Action 和结果；终态停止轮询，不显示 Prompt、思考链和原始日志。
 - 我的专家页仅列出并编辑 `owner_user_id=本人` 的自建专家（`scope=mine`）；新建表单必填名称与说明，可编辑自有策略；删除为软删除并二次确认、写家庭审计；编辑期间提示词不回显。
-- 快速剪辑页（剪辑对话页）以分步对话式引导推进：素材支持浏览器上传（经 `POST /api/v1/clipping/materials` 登记，服务端落盘 + ffprobe 提取元数据，上传后回填素材路径；素材卡片展示文件名/时长/分辨率，首版不生成缩略图）或本机/NAS 路径输入（可访问性由服务端校验，仅允许配置的素材根目录，越界 403）；对话经 `POST /api/v1/clipping/chat` 推进（context 随请求回传；V2.8 额外携带 `task_id` 引用 `clipping_tasks`）；对话达成目标后创建 Skill Run（UUID 幂等键）；方案以结构化时间线展示（片段序列/配乐/总时长，示意性可视化非真实视频预览）；**修改指令增量更新（V2.8）**：方案展示区提供快捷修改按钮（调整时长/更换风格/编辑片头/调整顺序/删除片段/新增素材/重新生成）与修改输入，修改指令沿用 `POST /skills/runs/{runId}/revise`（UUID 幂等键）执行，并显示服务端返回的版本标记与变更说明；**B36 引擎进度**：只消费 Run 事件中的 `stage`、`status`、可读 `message` 与时间，展示 `video_use`、可选 `seedance`、`hyperframes`、可选 `remotion`、`draft` 阶段；`skipped`、`planning` 或未配置状态绝不表示视频已生成，失败时保留安全消息与修改入口。Seedance 默认关闭，只有用户主动勾选并确认可能费用后才传 `allowSeedance=true`；运行终态或离开页面停止轮询；剪辑方案 Action 确认幂等；草稿下载使用 10 分钟 readToken；不渲染 Prompt、思考链或 MCP 内部路径。
+- 快速剪辑页（剪辑对话页）以分步对话式引导推进：素材支持浏览器上传（经 `POST /api/v1/clipping/materials` 登记，服务端落盘 + ffprobe 提取元数据，上传后回填素材路径；素材卡片展示文件名/时长/分辨率，首版不生成缩略图）或本机/NAS 路径输入（可访问性由服务端校验，仅允许配置的素材根目录，越界 403）；对话经 `POST /api/v1/clipping/chat` 推进（context 随请求回传；V2.8 额外携带 `task_id` 引用 `clipping_tasks`）；对话达成目标后创建 Skill Run（UUID 幂等键）；方案以结构化时间线展示（片段序列/配乐/总时长，示意性可视化非真实视频预览）；**修改指令增量更新（V2.8）**：方案展示区提供快捷修改按钮（调整时长/更换风格/编辑片头/调整顺序/删除片段/新增素材/重新生成）与修改输入，修改指令沿用 `POST /skills/runs/{runId}/revise`（UUID 幂等键）执行，并显示服务端返回的版本标记与变更说明；**B36 引擎进度**：只消费 Run 事件中的 `stage`、`status`、可读 `message` 与时间，展示 `video_use`、可选 `seedance`、`hyperframes`、可选 `remotion`、`draft` 阶段；`skipped`、`planning` 或未配置状态绝不表示视频已生成，失败时保留安全消息与修改入口。Seedance 默认关闭，只有用户主动勾选并确认可能费用后才传 `allowSeedance=true`；运行终态或离开页面停止轮询；剪辑方案 Action 确认幂等；草稿下载使用 10 分钟 readToken；不渲染 Prompt、思考链或 MCP 内部路径。**V2.9 体验重构（B37-B40）**：① **粗剪 mp4 预览/下载**——方案确认后任务进入 `rendering` 阶段，轮询 `GET /api/v1/clipping/tasks/{taskId}` 展示「正在渲染预览…」；完成后视频播放器（`<video>`）预览 mp4 并支持下载（readToken），`.draft` 下载入口降级为「进阶：去剪映精剪」；渲染失败展示安全失败消息 + 修改入口（不伪造成功）；② **素材自动发现**——素材区新增「自动发现」分组与扫描状态，服务端扫描登记（`source_type=scan`）的素材卡片与手动上传一致（文件名/时长/分辨率），仅本人可见；③ **自然语言一句话解析**——chat 输入支持一句话（「剪成 30 秒竖屏快节奏带字幕」），服务端返回「已理解：30 秒 / 竖屏 / 快节奏 / 加字幕」确认卡（可修正）后直接生成方案；AI 配置禁用时回退为既有分步引导按钮。
 - 思维导图页（`/app/tools/mindmap`）为纯客户端转换：粘贴 markdown 或本地 `.md` 文件（FileReader 本地读取为文本，不上传服务端）→ `POST /api/v1/skills/mindmap/runs` 创建 Skill Run（UUID 幂等键，同步返回 completed）→ markmap-lib 在浏览器转换渲染交互视图；导出 SVG/PNG 来自 markmap-view 实例，「自包含 HTML」内联本地 vendor 资源；Run 记录在运行详情可追溯；不渲染 Prompt。
 
 ### 开发端
@@ -150,7 +153,7 @@ NexusMind Web 是家庭成员和家庭管理员在 PC 使用的控制台，不�
 
 `/app/runs/:id` 运行详情展示可公开事件、建议、Action 与结果；Action 状态为 `pending|confirmed|rejected|executing|executed|failed|cancelled`。写操作（`POST /api/v1/expert-runs/{runId}/actions/{actionId}/confirm`）必须使用新的 UUID 幂等键，提交期间禁用按钮；重复键返回既有结果，绝不重复执行。终态停止轮询；跨用户或跨租户的 Run 返回 `404`。
 
-Skill 独立运行（SourceType=skill，如快速剪辑）复用同一运行视图与确认链路：`POST /api/v1/skills/{skillCode}/runs` 创建后按既有 Run 详情轮询，剪辑方案以结构化时间线展示（B30 视图：片段序列/配乐/总时长）；不满意可经 `POST /skills/runs/{runId}/revise` 修订指令重新生成方案（B31，UUID 幂等键；V2.8 演进为增量修改——7 维度修改指令映射 + 3 级粒度：参数调整/部分重做/全量重做，修改历史以版本标记展示）；Action 确认后登记生成文件，经 readToken 下载；素材经 `POST /api/v1/clipping/materials` 上传登记或路径输入；对话引导经 `POST /api/v1/clipping/chat` 推进（只引导不执行；V2.8 起携带 `task_id` 引用 `clipping_tasks` 会话状态）；B36 轮询任务与 Run events，按公开的 `video_use|seedance|hyperframes|remotion|draft` 与 `queued|running|skipped|succeeded|failed` 渲染进度，拒绝消费原始引擎数据；Seedance 仅在显式成本确认后传 `allowSeedance=true`；不渲染 MCP 内部路径或 Prompt。
+Skill 独立运行（SourceType=skill，如快速剪辑）复用同一运行视图与确认链路：`POST /api/v1/skills/{skillCode}/runs` 创建后按既有 Run 详情轮询，剪辑方案以结构化时间线展示（B30 视图：片段序列/配乐/总时长）；不满意可经 `POST /skills/runs/{runId}/revise` 修订指令重新生成方案（B31，UUID 幂等键；V2.8 演进为增量修改——7 维度修改指令映射 + 3 级粒度：参数调整/部分重做/全量重做，修改历史以版本标记展示）；Action 确认后登记生成文件，经 readToken 下载；素材经 `POST /api/v1/clipping/materials` 上传登记或路径输入；对话引导经 `POST /api/v1/clipping/chat` 推进（只引导不执行；V2.8 起携带 `task_id` 引用 `clipping_tasks`）；B36 轮询任务与 Run events，按公开的 `video_use|seedance|hyperframes|remotion|draft` 与 `queued|running|skipped|succeeded|failed` 渲染进度，拒绝消费原始引擎数据；**B37** 仅在任务或 Run 返回公开的 `Mp4FileId`、`mp4FileId` 或 `mp4_file_id` 后，才用该文件的 readToken 填充 `<video>` 预览与下载；文件 ID 更新时替换旧预览，签名链接申请失败仅提供安全重试；`rendering` 只显示进度，不制造可播放结果。Seedance 仅在显式成本确认后传 `allowSeedance=true`；不渲染 MCP 内部路径、Prompt 或原始 `Result`。
 
 ### 6.4 个人生活专家
 
@@ -307,6 +310,14 @@ M2 发布后，`/app/family` 增加「记忆候选」Tab；个人候选只对本
 
 成员身份、健康、财务、安防、位置轨迹及存在冲突的候选永远要求明确审核；页面不提供“全部自动接受”。接受前展示将写入的目标字段和覆盖/并存策略，写入后链接到家庭知识或个人偏好记录。后台复盘失败不影响原 Run，空状态文案为“暂无需要你确认的新记忆”，不能暗示模型已自动写入长期记忆。
 
+#### 7.8.5.1 学习记忆库
+
+M3 发布后，用户端注册独立路由 `/app/memories`，以 `LearningMemoryLibrary` 展示 M2 候选已被接受并写入事实源后形成的“AI 已学习内容”。这不是候选审核的重复入口，也不是完整记忆存储或 Prompt 调试器：候选保留其审核状态和证据，学习记忆库只提供当前可召回事实的可理解摘要及其学习溯源。
+
+页面首屏包含个人/家庭作用域切换、类型筛选（偏好、事实、决策）、状态筛选（活跃、已归档、已失效）、关键词和更新时间排序；列表采用“摘要 + 作用域 + 类型 + 稳定性/置信度 + 最近学习时间 + 来源”卡片，详情抽屉显示允许访问的来源 Run/Conversation 标识、候选决议时间、覆盖/并存结果和失效策略。它不显示原始证据全文、完整对话、模型输入输出、Prompt、思考链、外部 Provider 原始数据、内部键或 N97 SQLite/FTS 内容。个人项只由其 owner 返回；家庭项以服务端 `family.read` 裁决；来源中包含无权个人项时仅显示“受限引用 N 项”。
+
+路由与菜单只在 M3 API、`memory.read` 权限快照及已发布 `route_key` 同步后注册；否则不显示入口、不创建浏览器缓存或模拟数据。学习记忆库为只读；需要纠正 AI 学习结果时，引导用户到原始记忆候选或对应的家庭知识/个人偏好受控编辑流程，并由后端生成审计。
+
 #### 7.8.6 组件、响应式与可访问性
 
 建议组件边界如下；组件只接收 `api/` 映射后的 ViewModel，不发请求：
@@ -321,6 +332,7 @@ M2 发布后，`/app/family` 增加「记忆候选」Tab；个人候选只对本
 | `RunExecutionTimeline` | 可理解执行阶段与终态，不显示内部推理 |
 | `ContextSnapshotDrawer` | 冻结上下文的引用摘要与版本信息 |
 | `MemoryCandidateCard` | 候选证据、冲突、接受/编辑/拒绝 |
+| `LearningMemoryCard` | 已接受学习记忆的摘要、作用域、类型、稳定性和脱敏来源 |
 
 桌面端 Connector/设备使用摘要卡 + 表格；宽度小于 900px 时表格转卡片、诊断默认折叠。确认卡在窄屏使用底部 sticky 操作区，L2/L3 风险提示始终留在可视区域，主按钮顺序固定且不能仅靠颜色区分风险。所有状态具备图标+文本，倒计时用 `aria-live=polite` 低频更新，确认 Dialog 首焦点落在标题或“拒绝”而不是危险操作。
 
@@ -341,9 +353,11 @@ ContextSnapshotVM = { snapshotId, version, hash, frozenAt, referenceGroups[],
   deviceStateAsOf, expertVersion, skillVersions[], toolManifestVersion }
 MemoryCandidateVM = { candidateId, kind, proposedValue, visibility, evidence[],
   confidence, sensitivity, conflict, status, createdAt }
+LearningMemoryVM = { memoryId, summary, kind, visibility, stability, status,
+  learnedAt, expiresAt, sourceReferences[], resolutionSummary }
 ```
 
-建议后端按现有资源路由补充：Connector runtime/设备映射只读视图、Run Context Snapshot 只读视图、Memory Candidate 列表与 resolve 写接口、L1 run-scoped Grant 的确认参数。具体 URL、权限码、分页和错误码以 H1-H5/M1-M2 发布契约为准；Web 文档中的字段是联调目标，不构成绕过后端设计评审的临时 API。
+建议后端按现有资源路由补充：Connector runtime/设备映射只读视图、Run Context Snapshot 只读视图、Memory Candidate 列表与 resolve 写接口、L1 run-scoped Grant 的确认参数，以及 M3 的学习记忆库游标列表/详情只读视图。M3 响应只返回经 visibility 和成员权限过滤的 `LearningMemoryVM`，并提供来源受限计数而非越权内容；具体 URL、权限码、分页和错误码以 H1-H5/M1-M3 发布契约为准；Web 文档中的字段是联调目标，不构成绕过后端设计评审的临时 API。
 
 ### 7.9 美团生活服务个人连接器（规划，未发布 API）
 
@@ -395,9 +409,10 @@ MeituanSupplyItemVM = { title, category, price, rating, distance, availability,
 | Connector | `GET /api/v1/connector-providers`、`GET/POST /api/v1/connectors`、测试/发现/同步/授权路由；个人 OAuth：`POST /api/v1/connector-providers/{code}/authorizations`、`GET/DELETE /api/v1/connector-authorizations/{id}`、`GET /api/v1/connector-authorizations/my` |
 | 自动化 | `GET/POST/PATCH /api/v1/automation-rules` |
 | 专家 | `/api/v1/experts`（`?scope=basic\|mine\|all`）、`/skills`、`/expert-runs` |
-| Skill | `GET /api/v1/skills`、`POST /api/v1/skills/{skillCode}/runs`、`POST /api/v1/skills/runs/{runId}/actions/{actionId}/confirm`、`POST /api/v1/skills/runs/{runId}/revise`（B24/B25/B31，`ai.run` + `media.read`）；轮询复用 `/api/v1/expert-runs/{id}`；草稿下载经 `POST /api/v1/expert-files/{fileId}/read-token?purpose=download` 的 `ReadUrl`（10 分钟 readToken，不落库） |
+| Skill | `GET /api/v1/skills`、`POST /api/v1/skills/{skillCode}/runs`、`POST /api/v1/skills/runs/{runId}/actions/{actionId}/confirm`、`POST /api/v1/skills/runs/{runId}/revise`（B24/B25/B31，`ai.run` + `media.read`）；轮询复用 `/api/v1/expert-runs/{id}` 与 `GET /api/v1/clipping/tasks/{taskId}`；草稿与 B37 公开 `Mp4FileId` 下载经 `POST /api/v1/expert-files/{fileId}/read-token?purpose=download` 的 `ReadUrl`（10 分钟 readToken，不落库） |
 | 素材与剪辑对话 | `POST/GET/DELETE /api/v1/clipping/materials`（B29，`media.read` + `media.write`，multipart 上传/列表/删除，ffprobe 元数据，路径模式仅允许素材根目录）；`POST /api/v1/clipping/chat`（B32，`ai.run` + `media.read`，无状态 context 引导） |
 | 思维导图 | `POST /api/v1/skills/mindmap/runs`（B33，`ai.run` + `mindmap.read`，markdown ≤100000 字符、同步 completed、UUID 幂等键） |
+| 学习记忆库 | `GET /api/v1/memories`（M3，`memory.read`，只读游标列表/详情；个人/家庭隔离、来源脱敏、受限引用仅计数，无写接口） |
 | Skill 目录 | `GET /api/v1/skills?scope=mine|platform|all`（B34，默认 `mine`；mine=`ai.skills.read` 所有成员；platform/all 仅 owner/admin 角色，member/viewer 403，成员技能视图不含 Prompt） |
 | 会话 | `/api/v1/conversations`、`/conversations/{id}`、`/conversations/{id}/messages` |
 | 个人偏好 | `/api/v1/life/favorites` |

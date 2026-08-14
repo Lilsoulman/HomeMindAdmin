@@ -121,11 +121,11 @@ describe('skill api mapping', () => {
   })
 
   it('gets a clipping task with presentation-safe recovery fields', async () => {
-    request.get.mockResolvedValue({ Id: 31, RunId: 55, Status: 'reviewing', EngineStage: 'planning', Materials: ['D:\\data\\a.mp4'], Goal: '竖屏 30 秒', CurrentPlan: { totalDuration: 30 }, VersionHistory: [{ Version: 1, Plan: { totalDuration: 30 }, Change: '初始方案', ModifiedAt: '2026-08-13T03:00:00Z' }] })
+    request.get.mockResolvedValue({ Id: 31, RunId: 55, Status: 'done', EngineStage: 'render', mp4_file_id: 902, Materials: ['D:\\data\\a.mp4'], Goal: '竖屏 30 秒', CurrentPlan: { totalDuration: 30 }, VersionHistory: [{ Version: 1, Plan: { totalDuration: 30 }, Change: '初始方案', ModifiedAt: '2026-08-13T03:00:00Z' }] })
 
     const task = await getClippingTask({ taskId: 31 })
 
     expect(request.get).toHaveBeenCalledWith('/api/v1/clipping/tasks/31')
-    expect(task).toMatchObject({ id: 31, runId: 55, engineStage: 'planning', materials: ['D:\\data\\a.mp4'], versionHistory: [{ version: 1, description: '初始方案' }] })
+    expect(task).toMatchObject({ id: 31, runId: 55, engineStage: 'render', mp4FileId: 902, materials: ['D:\\data\\a.mp4'], versionHistory: [{ version: 1, description: '初始方案' }] })
   })
 })

@@ -83,6 +83,7 @@ function toSkillRun(dto = {}) {
     id: dto.Id !== undefined ? dto.Id : dto.id,
     status: dto.Status !== undefined ? dto.Status : dto.status,
     resultSummary: dto.ResultSummary,
+    mp4FileId: readPublicFileId(readMp4FileId(dto)),
     createdAt: dto.CreatedAt,
     finishedAt: dto.FinishedAt
   }
@@ -165,6 +166,7 @@ function toClippingTask(dto = {}) {
     runId: dto.RunId,
     status: dto.Status,
     engineStage: dto.EngineStage,
+    mp4FileId: readPublicFileId(readMp4FileId(dto)),
     materials: Array.isArray(dto.Materials) ? dto.Materials : [],
     goal: dto.Goal,
     currentPlan: dto.CurrentPlan,
@@ -172,6 +174,17 @@ function toClippingTask(dto = {}) {
     createdAt: dto.CreatedAt,
     updatedAt: dto.UpdatedAt
   }
+}
+
+function readPublicFileId(value) {
+  const fileId = Number(value)
+  return Number.isSafeInteger(fileId) && fileId > 0 ? fileId : undefined
+}
+
+function readMp4FileId(dto) {
+  if (dto.Mp4FileId !== undefined) return dto.Mp4FileId
+  if (dto.mp4FileId !== undefined) return dto.mp4FileId
+  return dto.mp4_file_id
 }
 
 function toVersionHistoryItem(dto = {}) {

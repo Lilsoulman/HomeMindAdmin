@@ -109,10 +109,28 @@
           </ul>
         </template>
 
+        <section v-if="rendering || mp4FileId" class="quick-edit-preview" aria-label="粗剪视频预览">
+          <header class="panel-heading run-section-heading"><div><p class="eyebrow">粗剪结果</p><h2>视频预览</h2></div></header>
+          <p v-if="rendering">正在渲染预览…</p>
+          <template v-else>
+            <video v-if="previewUrl" class="quick-edit-preview__video" controls preload="metadata" :src="previewUrl" aria-label="粗剪视频预览" />
+            <p v-else-if="preparingPreview">正在生成安全的视频链接…</p>
+            <p v-else-if="previewError">视频预览链接暂不可用，请重试。</p>
+            <p v-else>正在准备视频预览…</p>
+            <el-button v-if="previewError" size="small" :loading="preparingPreview" @click="prepareMp4Preview">重试获取预览</el-button>
+            <el-button type="primary" size="small" :loading="downloadingMp4" :disabled="!previewUrl" @click="downloadMp4">下载 mp4</el-button>
+          </template>
+        </section>
+
+        <section v-if="renderFailed" class="quick-edit-render-failure" aria-label="粗剪渲染状态">
+          <p>粗剪渲染未完成，视频未生成。你可以修改方案后重试。</p>
+          <el-button size="small" type="primary" :disabled="revising || confirmingId !== null" @click="openReviseDialog()">修改方案后重试</el-button>
+        </section>
+
         <template v-if="draftFileId">
           <header class="panel-heading run-section-heading"><div><p class="eyebrow">剪辑结果</p><h2>草稿下载</h2></div></header>
           <p>{{ confirmMessage || '草稿已生成，打开剪映即可编辑。' }}</p>
-          <el-button type="primary" size="small" :loading="downloading" @click="downloadDraft">下载 .draft 草稿</el-button>
+          <el-button type="primary" size="small" :loading="downloading" @click="downloadDraft">进阶：去剪映精剪（下载 .draft）</el-button>
         </template>
 
         <header class="panel-heading run-section-heading"><div><p class="eyebrow">进展</p><h2>事件时间线</h2></div></header>
@@ -198,6 +216,11 @@ export default {
       reviseDialogVisible: false,
       reviseInstruction: '',
       draftFileId: null,
+      previewUrl: '',
+      previewFileId: null,
+      previewError: false,
+      preparingPreview: false,
+      downloadingMp4: false,
       confirmMessage: '',
       downloading: false,
       timer: null,
@@ -207,6 +230,15 @@ export default {
   computed: {
     polling() {
       return this.run && !terminalStatuses.includes(this.run.status)
+    },
+    mp4FileId() {
+      return (this.run && this.run.mp4FileId) || (this.clippingTask && this.clippingTask.mp4FileId) || null
+    },
+    rendering() {
+      return this.clippingTask && this.clippingTask.status === 'rendering'
+    },
+    renderFailed() {
+      return (this.clippingTask && this.clippingTask.status === 'failed') || (this.run && this.run.status === 'failed')
     },
     activeStep() {
       if (this.draftFileId) return 4
@@ -219,7 +251,7 @@ export default {
       return action ? action.plan : { segments: [], audio: null, totalDuration: null }
     },
     canRevise() {
-      return this.run && !terminalStatuses.includes(this.run.status)
+      return this.run && this.run.status !== 'completed' && this.run.status !== 'cancelled'
     },
     reviseShortcuts() {
       return REVISE_SHORTCUTS
@@ -245,6 +277,13 @@ export default {
   watch: {
     useSeedance(enabled) {
       if (!enabled) this.seedanceCostConfirmed = false
+    },
+    mp4FileId(fileId) {
+      if (!fileId) {
+        this.clearMp4Preview()
+        return
+      }
+      if (fileId !== this.previewFileId) this.prepareMp4Preview()
     }
   },
   mounted() {
@@ -355,8 +394,11 @@ export default {
       this.chatContext = Object.assign({}, this.chatContext, { materials: task.materials, goal: task.goal })
       const runHistory = this.run && Array.isArray(this.run.versionHistory) ? this.run.versionHistory : []
       if (this.run && !runHistory.length && task.versionHistory.length) {
-        this.run = Object.assign({}, this.run, { engineStage: task.engineStage, versionHistory: task.versionHistory })
+        this.run = Object.assign({}, this.run, { engineStage: task.engineStage, versionHistory: task.versionHistory, mp4FileId: task.mp4FileId || this.run.mp4FileId })
+      } else if (this.run && task.mp4FileId && !this.run.mp4FileId) {
+        this.run = Object.assign({}, this.run, { mp4FileId: task.mp4FileId })
       }
+      if (task.mp4FileId) this.prepareMp4Preview()
     },
     async restoreTaskFromRoute() {
       const taskId = Number(this.$route && this.$route.query.taskId)
@@ -398,10 +440,12 @@ export default {
           const run = await getRun({ id: this.run.id })
           if (!this.pageAlive) return
           this.run = run
+          if (run.mp4FileId) this.prepareMp4Preview()
           await this.refreshRunParts()
           if (terminalStatuses.includes(run.status)) {
             this.stopPolling()
-            this.$message.success('运行已完成。')
+            if (run.status === 'completed') this.$message.success('运行已完成。')
+            else this.$message.error('运行未完成，请修改方案后重试。')
           }
         } catch (error) {
           this.stopPolling()
@@ -430,7 +474,9 @@ export default {
         const run = await getRun({ id: this.run.id })
         if (this.pageAlive) {
           this.run = run
+          if (run.mp4FileId) this.prepareMp4Preview()
           if (terminalStatuses.includes(run.status)) this.stopPolling()
+          else this.startPollingIfNeeded()
         }
       } catch (error) {
         if (error.status === 409) {
@@ -494,12 +540,59 @@ export default {
         this.downloading = false
       }
     },
+    async prepareMp4Preview() {
+      const fileId = this.mp4FileId
+      if (!fileId || this.preparingPreview || (this.previewUrl && this.previewFileId === fileId)) return
+      if (this.previewFileId !== fileId) {
+        this.previewUrl = ''
+        this.previewFileId = null
+      }
+      this.previewError = false
+      this.preparingPreview = true
+      try {
+        const { readUrl } = await getFileReadToken({ fileId })
+        if (this.pageAlive && this.mp4FileId === fileId) {
+          this.previewUrl = this.resolveReadUrl(readUrl)
+          this.previewFileId = fileId
+        }
+      } catch (error) {
+        if (this.pageAlive && this.mp4FileId === fileId) {
+          this.previewError = true
+          this.$message.error(error.message || '视频预览链接生成失败，请重试。')
+        }
+      } finally {
+        if (this.pageAlive) this.preparingPreview = false
+      }
+    },
+    async downloadMp4() {
+      if (!this.mp4FileId) return
+      this.downloadingMp4 = true
+      try {
+        const { readUrl } = await getFileReadToken({ fileId: this.mp4FileId })
+        window.open(this.resolveReadUrl(readUrl), '_blank')
+      } catch (error) {
+        this.$message.error(error.message || '视频下载链接生成失败，请重试。')
+      } finally {
+        this.downloadingMp4 = false
+      }
+    },
+    resolveReadUrl(readUrl) {
+      return readUrl.startsWith('http') ? readUrl : `${process.env.VUE_APP_API_BASE_URL || ''}/${readUrl.replace(/^\/+/, '')}`
+    },
+    clearMp4Preview() {
+      this.previewUrl = ''
+      this.previewFileId = null
+      this.previewError = false
+      this.preparingPreview = false
+      this.downloadingMp4 = false
+    },
     reset() {
       this.stopPolling()
       this.run = null
       this.events = []
       this.actions = []
       this.draftFileId = null
+      this.clearMp4Preview()
       this.confirmMessage = ''
       this.suggestions = []
       this.chatContext = null

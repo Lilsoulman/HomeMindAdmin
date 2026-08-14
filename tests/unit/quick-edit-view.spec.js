@@ -46,6 +46,7 @@ const stubs = {
 
 const runningRun = { id: 55, status: 'pending_actions', resultSummary: '快速剪辑方案已生成：素材「探店.mp4」', createdAt: '2026-08-09T03:00:00Z' }
 const completedRun = { id: 55, status: 'completed', resultSummary: '草稿已生成，打开剪映即可编辑。', createdAt: '2026-08-09T03:00:00Z', finishedAt: '2026-08-09T03:01:00Z' }
+const renderedRun = { id: 55, status: 'completed', resultSummary: '粗剪视频已生成，可预览或下载。', mp4FileId: 902, createdAt: '2026-08-09T03:00:00Z', finishedAt: '2026-08-09T03:01:00Z' }
 const pendingAction = {
   id: 78,
   actionType: 'draft_generate',
@@ -233,10 +234,97 @@ describe('QuickEdit view', () => {
     expect(wrapper.vm.draftFileId).toBe(901)
     expect(wrapper.vm.activeStep).toBe(4)
 
-    await findButton(wrapper, '下载 .draft 草稿').trigger('click')
+    await findButton(wrapper, '进阶：去剪映精剪').trigger('click')
     await flushPromises()
     expect(skillApi.getFileReadToken).toHaveBeenCalledWith({ fileId: 901 })
     expect(window.open).toHaveBeenCalledWith('https://cdn.example/draft?token=x', '_blank')
+    wrapper.destroy()
+  })
+
+  it('previews and downloads the B37 mp4 only when the API exposes a generated file id', async () => {
+    skillApi.getFileReadToken.mockResolvedValue({ readUrl: 'https://cdn.example/quick-edit.mp4?token=x' })
+    const wrapper = shallowMount(QuickEdit, { mocks, stubs })
+    wrapper.vm.run = renderedRun
+
+    await wrapper.vm.prepareMp4Preview()
+    await wrapper.vm.$nextTick()
+
+    expect(skillApi.getFileReadToken).toHaveBeenCalledWith({ fileId: 902 })
+    expect(wrapper.find('video').attributes('src')).toBe('https://cdn.example/quick-edit.mp4?token=x')
+    await findButton(wrapper, '下载 mp4').trigger('click')
+    await flushPromises()
+    expect(window.open).toHaveBeenCalledWith('https://cdn.example/quick-edit.mp4?token=x', '_blank')
+    wrapper.destroy()
+  })
+
+  it('replaces an expired preview when the API publishes a newer mp4 file', async () => {
+    skillApi.getFileReadToken.mockResolvedValue({ readUrl: 'https://cdn.example/new-quick-edit.mp4?token=x' })
+    const wrapper = shallowMount(QuickEdit, { mocks, stubs })
+    wrapper.vm.run = Object.assign({}, renderedRun, { mp4FileId: 903 })
+    wrapper.vm.previewUrl = 'https://cdn.example/old-quick-edit.mp4?token=x'
+    wrapper.vm.previewFileId = 902
+
+    await wrapper.vm.prepareMp4Preview()
+
+    expect(skillApi.getFileReadToken).toHaveBeenCalledWith({ fileId: 903 })
+    expect(wrapper.vm.previewUrl).toBe('https://cdn.example/new-quick-edit.mp4?token=x')
+    expect(wrapper.vm.previewFileId).toBe(903)
+    wrapper.destroy()
+  })
+
+  it('offers a retry when the mp4 preview token cannot be issued', async () => {
+    skillApi.getFileReadToken.mockRejectedValueOnce({ message: 'temporary failure' })
+    const wrapper = shallowMount(QuickEdit, { mocks, stubs })
+    wrapper.vm.run = renderedRun
+
+    await wrapper.vm.prepareMp4Preview()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('视频预览链接暂不可用，请重试。')
+    skillApi.getFileReadToken.mockResolvedValue({ readUrl: 'https://cdn.example/retry.mp4?token=x' })
+    await findButton(wrapper, '重试获取预览').trigger('click')
+    await flushPromises()
+    expect(wrapper.vm.previewUrl).toBe('https://cdn.example/retry.mp4?token=x')
+    wrapper.destroy()
+  })
+
+  it('shows rendering progress without inventing a playable video', async () => {
+    const wrapper = shallowMount(QuickEdit, { mocks, stubs })
+    wrapper.vm.run = runningRun
+    wrapper.vm.clippingTask = { id: 31, status: 'rendering', engineStage: 'render' }
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('正在渲染预览…')
+    expect(wrapper.find('video').exists()).toBe(false)
+    expect(skillApi.getFileReadToken).not.toHaveBeenCalled()
+    wrapper.destroy()
+  })
+
+  it('shows a safe retry path when rendering fails without an mp4 file', async () => {
+    const wrapper = shallowMount(QuickEdit, { mocks, stubs })
+    wrapper.vm.run = { ...runningRun, status: 'failed' }
+    wrapper.vm.clippingTask = { id: 31, status: 'failed', engineStage: 'render' }
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('粗剪渲染未完成，视频未生成。')
+    expect(wrapper.find('video').exists()).toBe(false)
+    await findButton(wrapper, '修改方案后重试').trigger('click')
+    expect(wrapper.vm.reviseDialogVisible).toBe(true)
+    wrapper.destroy()
+  })
+
+  it('restarts polling after confirmation when rendering continues asynchronously', async () => {
+    skillApi.confirmSkillAction.mockResolvedValue({ actionId: 78, status: 'executing', message: '正在渲染预览。' })
+    expertApi.getRun.mockResolvedValue({ ...runningRun, status: 'executing' })
+    expertApi.getRunActions.mockResolvedValue({ events: [], actions: [pendingAction] })
+    const wrapper = shallowMount(QuickEdit, { mocks, stubs })
+    wrapper.vm.run = runningRun
+    wrapper.vm.actions = [pendingAction]
+    const startPolling = jest.spyOn(wrapper.vm, 'startPollingIfNeeded')
+
+    await wrapper.vm.confirmAction(pendingAction)
+
+    expect(startPolling).toHaveBeenCalled()
     wrapper.destroy()
   })
 

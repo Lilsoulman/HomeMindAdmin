@@ -110,8 +110,20 @@ function toRun(dto = {}) {
     conversationId: dto.ConversationId,
     engineStage: dto.EngineStage,
     version: dto.Version,
-    versionHistory: Array.isArray(dto.VersionHistory) ? dto.VersionHistory.map(toVersionHistoryItem) : []
+    versionHistory: Array.isArray(dto.VersionHistory) ? dto.VersionHistory.map(toVersionHistoryItem) : [],
+    mp4FileId: readMp4FileId(readPublicMp4FileId(dto))
   }
+}
+
+function readMp4FileId(value) {
+  const fileId = Number(value)
+  return Number.isSafeInteger(fileId) && fileId > 0 ? fileId : undefined
+}
+
+function readPublicMp4FileId(dto) {
+  if (dto.Mp4FileId !== undefined) return dto.Mp4FileId
+  if (dto.mp4FileId !== undefined) return dto.mp4FileId
+  return dto.mp4_file_id
 }
 
 function toRunEvent(dto = {}) {

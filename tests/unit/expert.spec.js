@@ -92,7 +92,7 @@ describe('expert api mapping', () => {
 
   it('maps run view without raw input or result', async () => {
     request.get.mockResolvedValue({
-      id: 9, SourceType: 'expert', status: 'completed', Input: '{"messages":[...]}', Result: '{"raw":true}',
+      id: 9, SourceType: 'expert', status: 'completed', Input: '{"messages":[...]}', Result: '{"internal":"hidden"}', mp4_file_id: 902,
       ResultSummary: '已生成建议', EstimatedCredits: 1, ActualCredits: 1, CreatedAt: '2026-08-02T03:11:22Z',
       StartedAt: '2026-08-02T03:11:23Z', FinishedAt: '2026-08-02T03:12:00Z', ConversationId: 5,
       EngineStage: 'packaging', Version: 3, VersionHistory: [{ Version: 3, ChangeDescription: '调整片头', CreatedAt: '2026-08-02T03:11:30Z' }]
@@ -104,6 +104,7 @@ describe('expert api mapping', () => {
     expect(run.status).toBe('completed')
     expect(run.resultSummary).toBe('已生成建议')
     expect(run.engineStage).toBe('packaging')
+    expect(run.mp4FileId).toBe(902)
     expect(run.versionHistory).toEqual([{ version: 3, description: '调整片头', createdAt: '2026-08-02T03:11:30Z' }])
     expect(run).not.toHaveProperty('input')
     expect(run).not.toHaveProperty('result')

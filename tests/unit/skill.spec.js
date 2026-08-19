@@ -1,4 +1,4 @@
-import { chatClipping, confirmSkillAction, createMindmapRun, createSkillRun, deleteClippingMaterial, getClippingTask, getFileReadToken, getSkill, listSkills, reviseSkillRun, uploadClippingMaterial } from '../../src/api/skill'
+import { chatClipping, confirmSkillAction, createMindmapRun, createSkillRun, deleteClippingMaterial, fetchFileContent, getClippingTask, getFileReadToken, getSkill, listClippingMaterials, listSkills, reviseSkillRun, uploadClippingMaterial } from '../../src/api/skill'
 
 jest.mock('../../src/utils/request', () => ({
   request: { get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() }
@@ -73,6 +73,28 @@ describe('skill api mapping', () => {
     expect(token).toEqual({ readToken: 'tok-1', readUrl: 'https://cdn.example/quick_edit_55.draft.json?token=x' })
   })
 
+  it('fetches file content as a blob object URL for preview and download', async () => {
+    const blob = new Blob(['video-bytes'], { type: 'video/mp4' })
+    request.get.mockResolvedValue(blob)
+    URL.createObjectURL = jest.fn(() => 'blob:file-902')
+
+    const url = await fetchFileContent({ readUrl: 'api/v1/expert-files/902/content?readToken=tok-1' })
+
+    expect(request.get).toHaveBeenCalledWith('api/v1/expert-files/902/content?readToken=tok-1', { responseType: 'blob', timeout: 120000 })
+    expect(URL.createObjectURL).toHaveBeenCalledWith(blob)
+    expect(url).toBe('blob:file-902')
+  })
+
+  it('maps scanned clipping materials without exposing the directory key', async () => {
+    request.get.mockResolvedValue([{ Id: 14, FileName: 'auto.mp4', SourceType: 'scan', FileSize: 2048, StoragePath: 'materials/auto.mp4', DirectoryKey: 'internal-key' }])
+
+    const materials = await listClippingMaterials()
+
+    expect(request.get).toHaveBeenCalledWith('/api/v1/clipping/materials')
+    expect(materials).toEqual([{ id: 14, fileName: 'auto.mp4', contentType: undefined, fileSize: 2048, durationSeconds: undefined, width: undefined, height: undefined, storagePath: 'materials/auto.mp4', sourceType: 'scan', createdAt: undefined }])
+    expect(materials[0]).not.toHaveProperty('directoryKey')
+  })
+
   it('revises a skill run plan with instruction and idempotency key', async () => {
     request.post.mockResolvedValue({ Id: 55, Status: 'pending_actions', ResultSummary: '快速剪辑方案已生成', CreatedAt: '2026-08-09T03:00:00Z', FinishedAt: null })
 
@@ -92,7 +114,7 @@ describe('skill api mapping', () => {
     expect(url).toBe('/api/v1/clipping/materials')
     expect(body).toBeInstanceOf(FormData)
     expect(options.headers).toEqual({ 'Content-Type': undefined })
-    expect(material).toEqual({ id: 7, fileName: 'a.mp4', contentType: 'video/mp4', fileSize: 1024, durationSeconds: 15, width: 1920, height: 1080, storagePath: 'D:\\data\\a.mp4', createdAt: '2026-08-09T03:00:00Z' })
+    expect(material).toEqual({ id: 7, fileName: 'a.mp4', contentType: 'video/mp4', fileSize: 1024, durationSeconds: 15, width: 1920, height: 1080, storagePath: 'D:\\data\\a.mp4', sourceType: 'upload', createdAt: '2026-08-09T03:00:00Z' })
   })
 
   it('deletes a material by id', async () => {

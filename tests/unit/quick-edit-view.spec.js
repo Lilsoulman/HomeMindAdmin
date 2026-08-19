@@ -7,6 +7,7 @@ jest.mock('../../src/api/skill', () => ({
   createSkillRun: jest.fn(),
   confirmSkillAction: jest.fn(),
   getFileReadToken: jest.fn(),
+  fetchFileContent: jest.fn(),
   reviseSkillRun: jest.fn(),
   chatClipping: jest.fn(),
   getClippingTask: jest.fn(),
@@ -75,6 +76,9 @@ describe('QuickEdit view', () => {
     expertApi.getRunEvents.mockResolvedValue([])
     expertApi.getRunActions.mockResolvedValue({ events: [], actions: [] })
     jest.spyOn(window, 'open').mockImplementation(() => {})
+    // jsdom 无 Blob URL 支持，测试期以稳定值替身
+    URL.createObjectURL = jest.fn(() => 'blob:mock-mp4')
+    URL.revokeObjectURL = jest.fn()
   })
 
   afterEach(() => {
@@ -114,6 +118,17 @@ describe('QuickEdit view', () => {
 
     expect(wrapper.vm.materialPaths).toEqual(['/nas/videos/探店.mp4'])
     expect(wrapper.vm.chatContext.materials).toEqual(['/nas/videos/探店.mp4'])
+    wrapper.destroy()
+  })
+
+  it('uses auto-discovered materials and removes their path after deletion', () => {
+    const wrapper = shallowMount(QuickEdit, { mocks, stubs })
+    const autoMaterial = { id: 8, sourceType: 'scan', storagePath: 'materials/auto.mp4' }
+
+    wrapper.vm.onMaterialsAvailable([autoMaterial])
+    wrapper.vm.onRemoved(autoMaterial.id, autoMaterial)
+
+    expect(wrapper.vm.chatContext.materials).toEqual([])
     wrapper.destroy()
   })
 
@@ -193,13 +208,28 @@ describe('QuickEdit view', () => {
     wrapper.vm.actions = [pendingAction]
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.vm.engineProgress.map((stage) => stage.label)).toEqual(['素材分析与粗剪', '补充画面（可选）', '视觉包装', '渲染编排（可选）', '草稿生成'])
+    expect(wrapper.vm.engineProgress.map((stage) => stage.label)).toEqual(['素材分析与粗剪', '补充画面（可选）', '视觉包装'])
     expect(wrapper.vm.engineProgress[1].status).toBe('skipped')
     expect(wrapper.text()).toContain('引擎进度')
     expect(wrapper.text()).toContain('已跳过')
+    expect(wrapper.text()).toContain('暂无 渲染编排（可选）、草稿生成 的实时引擎反馈')
+    expect(wrapper.text()).toContain('前端无法据此判断能力是否已接入')
     expect(wrapper.text()).toContain('版本 3')
     expect(wrapper.text()).toContain('调整片头')
     expect(wrapper.text()).toContain('调整时长')
+    wrapper.destroy()
+  })
+
+  it('does not invent waiting stages when the server provides no engine events', async () => {
+    const wrapper = shallowMount(QuickEdit, { mocks, stubs })
+    wrapper.vm.run = runningRun
+    wrapper.vm.clippingTask = { id: 31, status: 'running' }
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.engineProgress).toEqual([])
+    expect(wrapper.text()).toContain('当前任务未返回这些阶段的公开事件')
+    expect(wrapper.text()).toContain('未收到事件不代表能力未接入或任务未执行')
+    expect(wrapper.text()).toContain('Seedance 本次未启用')
     wrapper.destroy()
   })
 
@@ -243,6 +273,7 @@ describe('QuickEdit view', () => {
 
   it('previews and downloads the B37 mp4 only when the API exposes a generated file id', async () => {
     skillApi.getFileReadToken.mockResolvedValue({ readUrl: 'https://cdn.example/quick-edit.mp4?token=x' })
+    skillApi.fetchFileContent.mockResolvedValue('blob:mock-mp4')
     const wrapper = shallowMount(QuickEdit, { mocks, stubs })
     wrapper.vm.run = renderedRun
 
@@ -250,30 +281,36 @@ describe('QuickEdit view', () => {
     await wrapper.vm.$nextTick()
 
     expect(skillApi.getFileReadToken).toHaveBeenCalledWith({ fileId: 902 })
-    expect(wrapper.find('video').attributes('src')).toBe('https://cdn.example/quick-edit.mp4?token=x')
+    expect(skillApi.fetchFileContent).toHaveBeenCalledWith({ readUrl: 'https://cdn.example/quick-edit.mp4?token=x' })
+    expect(wrapper.find('video').attributes('src')).toBe('blob:mock-mp4')
     await findButton(wrapper, '下载 mp4').trigger('click')
     await flushPromises()
-    expect(window.open).toHaveBeenCalledWith('https://cdn.example/quick-edit.mp4?token=x', '_blank')
+    expect(skillApi.fetchFileContent).toHaveBeenCalledTimes(2)
+    expect(window.open).not.toHaveBeenCalled()
     wrapper.destroy()
   })
 
   it('replaces an expired preview when the API publishes a newer mp4 file', async () => {
     skillApi.getFileReadToken.mockResolvedValue({ readUrl: 'https://cdn.example/new-quick-edit.mp4?token=x' })
+    skillApi.fetchFileContent.mockResolvedValue('blob:mock-mp4')
     const wrapper = shallowMount(QuickEdit, { mocks, stubs })
     wrapper.vm.run = Object.assign({}, renderedRun, { mp4FileId: 903 })
-    wrapper.vm.previewUrl = 'https://cdn.example/old-quick-edit.mp4?token=x'
+    wrapper.vm.previewUrl = 'blob:old-preview'
     wrapper.vm.previewFileId = 902
 
     await wrapper.vm.prepareMp4Preview()
 
     expect(skillApi.getFileReadToken).toHaveBeenCalledWith({ fileId: 903 })
-    expect(wrapper.vm.previewUrl).toBe('https://cdn.example/new-quick-edit.mp4?token=x')
+    expect(skillApi.fetchFileContent).toHaveBeenCalledWith({ readUrl: 'https://cdn.example/new-quick-edit.mp4?token=x' })
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:old-preview')
+    expect(wrapper.vm.previewUrl).toBe('blob:mock-mp4')
     expect(wrapper.vm.previewFileId).toBe(903)
     wrapper.destroy()
   })
 
-  it('offers a retry when the mp4 preview token cannot be issued', async () => {
-    skillApi.getFileReadToken.mockRejectedValueOnce({ message: 'temporary failure' })
+  it('offers a retry when the mp4 preview content cannot be loaded', async () => {
+    skillApi.getFileReadToken.mockResolvedValue({ readUrl: 'https://cdn.example/retry.mp4?token=x' })
+    skillApi.fetchFileContent.mockRejectedValueOnce({ message: 'temporary failure' })
     const wrapper = shallowMount(QuickEdit, { mocks, stubs })
     wrapper.vm.run = renderedRun
 
@@ -281,10 +318,10 @@ describe('QuickEdit view', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.text()).toContain('视频预览链接暂不可用，请重试。')
-    skillApi.getFileReadToken.mockResolvedValue({ readUrl: 'https://cdn.example/retry.mp4?token=x' })
+    skillApi.fetchFileContent.mockResolvedValue('blob:mock-mp4')
     await findButton(wrapper, '重试获取预览').trigger('click')
     await flushPromises()
-    expect(wrapper.vm.previewUrl).toBe('https://cdn.example/retry.mp4?token=x')
+    expect(wrapper.vm.previewUrl).toBe('blob:mock-mp4')
     wrapper.destroy()
   })
 
@@ -296,7 +333,7 @@ describe('QuickEdit view', () => {
 
     expect(wrapper.text()).toContain('正在渲染预览…')
     expect(wrapper.find('video').exists()).toBe(false)
-    expect(skillApi.getFileReadToken).not.toHaveBeenCalled()
+    expect(skillApi.fetchFileContent).not.toHaveBeenCalled()
     wrapper.destroy()
   })
 

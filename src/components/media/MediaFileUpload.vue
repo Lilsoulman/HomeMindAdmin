@@ -11,38 +11,88 @@
     </el-upload>
     <p v-if="uploading" class="media-upload__hint">上传中… {{ progress }}%</p>
     <p v-if="error" class="media-upload__hint media-upload__hint--error">{{ error }}</p>
+    <div v-if="loading" class="media-upload__hint">正在同步素材，自动发现的文件会显示在下方。</div>
+    <div v-else-if="loadError" class="media-upload__hint media-upload__hint--error">
+      {{ loadError }}
+      <el-button size="mini" type="text" @click="loadMaterials">重试</el-button>
+    </div>
 
-    <ul v-if="materials.length" class="media-upload__cards">
-      <li v-for="material in materials" :key="material.id" class="material-card">
-        <div class="material-card__body">
-          <strong class="material-card__name" :title="material.fileName">{{ material.fileName }}</strong>
-          <p class="material-card__meta">
-            <span v-if="material.durationSeconds">时长 {{ material.durationSeconds }} 秒</span>
-            <span v-if="material.width && material.height">{{ material.width }}×{{ material.height }}</span>
-            <span>{{ formatSize(material.fileSize) }}</span>
-          </p>
-        </div>
-        <el-button size="mini" type="text" :disabled="removingId === material.id" @click="remove(material.id)">移除</el-button>
-      </li>
-    </ul>
+    <section v-if="manualMaterials.length" class="media-upload__group" aria-label="手动添加的素材">
+      <p class="media-upload__group-title">手动添加</p>
+      <ul class="media-upload__cards">
+        <li v-for="material in manualMaterials" :key="material.id" class="material-card">
+          <div class="material-card__body">
+            <strong class="material-card__name" :title="material.fileName">{{ material.fileName }}</strong>
+            <p class="material-card__meta">
+              <span v-if="material.durationSeconds">时长 {{ material.durationSeconds }} 秒</span>
+              <span v-if="material.width && material.height">{{ material.width }}×{{ material.height }}</span>
+              <span>{{ formatSize(material.fileSize) }}</span>
+            </p>
+          </div>
+          <el-button size="mini" type="text" :disabled="removingId === material.id" @click="remove(material)">移除</el-button>
+        </li>
+      </ul>
+    </section>
+    <section v-if="scannedMaterials.length" class="media-upload__group" aria-label="自动发现的素材">
+      <p class="media-upload__group-title">自动发现 <span>素材目录扫描后自动登记，仅自己可见。</span></p>
+      <ul class="media-upload__cards">
+        <li v-for="material in scannedMaterials" :key="material.id" class="material-card">
+          <div class="material-card__body">
+            <strong class="material-card__name" :title="material.fileName">{{ material.fileName }}</strong>
+            <p class="material-card__meta">
+              <span v-if="material.durationSeconds">时长 {{ material.durationSeconds }} 秒</span>
+              <span v-if="material.width && material.height">{{ material.width }}×{{ material.height }}</span>
+              <span>{{ formatSize(material.fileSize) }}</span>
+            </p>
+          </div>
+          <el-button size="mini" type="text" :disabled="removingId === material.id" @click="remove(material)">移除</el-button>
+        </li>
+      </ul>
+    </section>
   </div>
 </template>
 
 <script>
-import { deleteClippingMaterial, uploadClippingMaterial } from '../../api/skill'
+import { deleteClippingMaterial, listClippingMaterials, uploadClippingMaterial } from '../../api/skill'
 
 export default {
   name: 'MediaFileUpload',
   data() {
     return {
       materials: [],
+      loading: true,
+      loadError: '',
       uploading: false,
       progress: 0,
       removingId: null,
       error: ''
     }
   },
+  computed: {
+    manualMaterials() {
+      return this.materials.filter((material) => material.sourceType !== 'scan')
+    },
+    scannedMaterials() {
+      return this.materials.filter((material) => material.sourceType === 'scan')
+    }
+  },
+  created() {
+    this.loadMaterials()
+  },
   methods: {
+    async loadMaterials() {
+      this.loading = true
+      this.loadError = ''
+      try {
+        const materials = await listClippingMaterials()
+        this.materials = materials
+        this.$emit('available', materials)
+      } catch (error) {
+        this.loadError = error.message || '素材列表加载失败，请重试。'
+      } finally {
+        this.loading = false
+      }
+    },
     async uploadFile({ file }) {
       this.uploading = true
       this.progress = 0
@@ -54,7 +104,7 @@ export default {
             if (event && event.total) this.progress = Math.round((event.loaded / event.total) * 100)
           }
         })
-        this.materials.push(material)
+        this.materials = [material, ...this.materials.filter((item) => item.id !== material.id)]
         this.$emit('uploaded', material)
       } catch (uploadError) {
         this.error = uploadError.message || '素材上传失败，请重试。'
@@ -63,12 +113,12 @@ export default {
         this.uploading = false
       }
     },
-    async remove(id) {
-      this.removingId = id
+    async remove(material) {
+      this.removingId = material.id
       try {
-        await deleteClippingMaterial({ id })
-        this.materials = this.materials.filter((material) => material.id !== id)
-        this.$emit('removed', id)
+        await deleteClippingMaterial({ id: material.id })
+        this.materials = this.materials.filter((item) => item.id !== material.id)
+        this.$emit('removed', material.id, material)
       } catch (error) {
         this.$message.error(error.message || '素材移除失败，请重试。')
       } finally {

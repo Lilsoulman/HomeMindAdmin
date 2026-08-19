@@ -5,8 +5,8 @@
 > **接口依据：** `D:\HomeMind\core\docs\frontend-api-integration.md`
 > **计划性质：** 当前实施快照。仅维护已完成项和下一步，不保留迭代历史，也不改变产品或接口契约。
 
-最近同步：2026-08-14
-当前目标：P5 剪辑任务持久化与 B36 四引擎事件前端验收已完成；等待后端部署后以非敏感本地样片完成参数调整、部分重做、全量重做联调。V2.9 的 W-QE1 前端兼容实现已完成，等待 B37 发布并部署公开 `Mp4FileId`/`mp4_file_id` 契约后联调验收；其后按 W-QE2 素材自动发现 → W-QE3 自然语言解析顺序推进，分别跟随后端 B38-B39。美团旅行作为平台许可、真实 Token 与本地后端 MTR-1a 通过后的下一业务候选，N100 迁移在本地闭环通过后单独验收。HA MCP Web 体验按后端 H1-H5、M1-M3 契约分片解锁；W-M3 学习记忆库（`/app/memories`）前端已完成并通过 lint/unit(250 项)/build，等待后端 M3 真实环境联调验收；W-M2 记忆候选随 M2 契约发布后在 `/app/family` 实施。小红书功能因平台警告风险暂停开发，不进入当前排期，也不继续联调或发布。
+最近同步：2026-08-19
+当前目标：P5 剪辑任务持久化与 B36 四引擎事件前端验收已完成；W-QE1 粗剪预览/下载与 W-QE2 素材自动发现已完成 B37/B38 真实环境联调，并通过 lint/unit(265 项)/build。下一剪辑切片为 W-QE3，严格等待 B39 公开契约部署后实施。美团旅行作为平台许可、真实 Token 与本地后端 MTR-1a 通过后的下一业务候选，N100 迁移在本地闭环通过后单独验收。HA MCP Web 体验按后端 H1-H5、M1-M3 契约分片解锁；W-M3 学习记忆库（`/app/memories`）前端已完成并通过 lint/unit(250 项)/build，等待后端 M3 真实环境联调验收；W-M2 记忆候选随 M2 契约发布后在 `/app/family` 实施。小红书功能因平台警告风险暂停开发，不进入当前排期，也不继续联调或发布。
 
 ## 1. 不变基线
 
@@ -38,30 +38,21 @@
 | 个人 Connector/OAuth | 已完成 | 我的连接（仅本人可见）脱敏展示个人实例、Provider 选择发起授权（`POST /connector-providers/{code}/authorizations` + 整页跳转 `AuthorizationUrl`，会话 ID 存 `sessionStorage` 仅用于回跳定位）、`/oauth/callback` 回调路由（查询一次会话状态后回连接页）、撤销（二次确认 + `DELETE /connector-authorizations/{id}`，幂等）与 revoked 重新授权；`connector.authorize` 加入 member 角色矩阵；Setup 向导文案指向个人授权入口；`npm run lint`、`npm run test:unit`（161 项）与 `npm run build` 通过；本地全链路联调依赖后端 `ConnectorOAuth:AllowedRedirectUris` 配置（含 `http://localhost:8080/oauth/callback`） |
 | 我的专家 | 已完成 | 用户端 `/app/experts` 仅列出本人自建专家（`scope=mine`，不泄露他人）；新建表单必填名称/分类/说明/角色设定/提示词，能力策略 JSON 前端校验；更新带 RowVersion、409 刷新；删除二次确认；PromptTemplate 永不回显（编辑需重新输入）；`expert.mine.write` 加入 member 角色矩阵；`npm run lint`、`npm run test:unit`（177 项）与 `npm run build` 通过 |
 | 快速剪辑 Skill（P2 对话式优化） | 已完成 | 工作台升级为分步对话式引导（素材→目标→方案→确认→导出）：素材支持浏览器上传（`POST /api/v1/clipping/materials`，FormData 去 JSON header、上传进度、素材卡片含时长/分辨率/大小、可移除）或路径输入（回填 `media_location`）；对话经 `POST /api/v1/clipping/chat` 无状态推进（context 回传、suggestions 快捷按钮：生成方案/确认方案/修改目标重新生成/重新剪辑）；方案以结构化时间线渲染（PlanTimeline：片段序列/总时长）；「修改目标重新生成」经 `POST /skills/runs/{runId}/revise`（幂等键）；确认/下载复用 B25 链路（readUrl 相对路径拼接 API 基址修正）；轮询/幂等/终态/离开页停止保留；`media.read` 与 `media.write` 加入 member 角色矩阵；源码与构建产物无 MCP 路径/Prompt 泄露；`npm run lint`、`npm run test:unit`（207 项）与 `npm run build` 通过；真实 MySQL 全链路联调通过（上传→chat→run→时间线→revise→确认→readToken 下载） |
-| 快速剪辑 Skill（P5 V2.8 界面适配） | 已完成 | 剪辑对话请求透传 `task_id`；运行 DTO 消费可公开的 `engineStage`、版本号与 `versionHistory`，不消费引擎内部数据；时间线下提供调整时长/风格/片头/顺序/片段/素材/重生成快捷修改入口，仍复用 `POST /skills/runs/{runId}/revise` 与 UUID 幂等键；B36 仅按公开事件的 `video_use/seedance/hyperframes/remotion/draft` 和状态渲染进度，跳过或未配置不表示视频已生成；Seedance 默认关闭，须主动勾选并确认成本后才传 `allowSeedance=true`。Node 20.18 环境下 `lint`、233 项 `unit` 与 `build` 已通过；本地后端部署验证待执行。 |
+| 快速剪辑 Skill（P5 V2.8 界面适配） | 已完成 | 剪辑对话请求透传 `task_id`；运行 DTO 消费可公开的 `engineStage`、版本号与 `versionHistory`，不消费引擎内部数据；时间线下提供调整时长/风格/片头/顺序/片段/素材/重生成快捷修改入口，仍复用 `POST /skills/runs/{runId}/revise` 与 UUID 幂等键；B36 仅按公开事件的 `video_use/seedance/hyperframes/remotion/draft` 和状态渲染进度，跳过或未配置不表示视频已生成；Seedance 默认关闭，须主动勾选并确认成本后才传 `allowSeedance=true`。B36 前端验收与 Node 20.18 环境下 `lint`、233 项 `unit`、`build` 均已通过。 |
+| 快速剪辑 Skill（W-QE1/W-QE2） | 已完成 | B37 任务 `rendering` 安全进度、mp4 预览与下载已通过真实本地样片验收：只从 Run 的公开结果映射有效文件 ID，申请 readToken 后以 Bearer 拉取 Blob，预览/下载实际获得 3430836 字节 `video/mp4`；无效素材渲染返回安全失败消息，不登记 mp4 或伪造成功。B38 自动发现按 `sourceType=scan` 与手动上传分组；真实扫描素材验证文件名、7 秒时长和 1920×1080 元数据，仍由服务端裁决本人可见性与删除权限。`npm run lint`、`npm run test:unit`（265 项）与 `npm run build` 通过。 |
 | 思维导图工具（P3） | 已完成 | `/app/tools/mindmap` 支持粘贴 Markdown 与 FileReader 本地读取 `.md`（不上传文件）；浏览器内以本地化 `markmap-lib`/`markmap-view`/d3 vendor 转换、缩放、拖拽、折叠与适配，未进 webpack；创建 `POST /api/v1/skills/mindmap/runs` 记录 Run（UUID 幂等键），无 Prompt 渲染或本地持久化；支持 SVG、PNG 与内联 vendor 的断网自包含 HTML 导出；`mindmap.read` 加入 member 权限矩阵，viewer 无法访问。 |
 | Skill 目录查看（P4） | 已完成 | 用户端 `/app/skills` 仅以 `scope=mine` 查看本人用户级技能与只读详情（Prompt 仅该详情消费）；开发端 `/console/experts` 新增 Skill Tab，以 `scope=all` 区分平台级目录（key/分类/风险/所需权限/输入 schema）与成员技能（名称/成员/状态），不回显成员 Prompt；`ai.skills.read` 加入 member/viewer 权限矩阵，平台/all 仍由服务端角色校验。`npm run lint`、`npm run test:unit`（230 项）与 `npm run build` 通过。 |
 | 学习记忆库（W-M3） | 已完成 | 用户端 `/app/memories` 只展示已接受、可召回的个人/家庭学习记忆：作用域/类型/状态/关键词筛选、游标分页与 loading/empty/error+retry 齐备；卡片展示摘要、作用域、类型、稳定性、学习时间与脱敏来源，受限来源仅显示「含 N 项受限引用」，可见 Run 来源可跳转运行详情；不展示 Prompt、完整会话、原始证据或凭据；`memory.read` 加入 member/viewer 角色矩阵（`memory.write` 为 M2 候选 resolve 预留，当前未消费）；`npm run lint`、`npm run test:unit`（250 项）与 `npm run build` 通过 |
 
 ## 3. 下一步
 
-P5 后端联调（依赖后端 V2.8 切片，产品总设计 §7.1、Web 总设计 §5）：
-
-- B35 与 B36 Web 契约已接入并验收：任务 URL 恢复、任务/Run 轮询、安全版本历史及四引擎公开事件渲染均已实现；Node 20.18 下 `lint`、`unit`（233 项）与 `build` 已通过；
-- 后端部署 B36 后，以非敏感本地样片验证参数调整、部分重做、全量重做各自的服务端反馈、`failed/skipped` 安全状态与轮询终止；
-- 边界不变：素材卡片首版不生成缩略图、方案时间线为示意性可视化，不做一键成片。
-
-V2.9 剪辑体验重构 Web 切片（Web 总设计 §5；跟随后端 B37-B39 发布，产品总设计 §7.1.1）：
+V2.9 剪辑体验重构 Web 切片（Web 总设计 §5；等待后端 B39 公开契约，产品总设计 §7.1.1）：
 
 | 顺序 | Web 切片 | 页面与组件 | 后端依赖 | 最小验收 |
 | --- | --- | --- | --- | --- |
-| W-QE1 | 粗剪 mp4 预览/下载 | 快速剪辑页 `QuickEdit.vue`：任务 `rendering` 阶段进度、`<video>` 预览、mp4 下载（readToken）、`.draft` 降级「进阶：去剪映精剪」入口 | B37 渲染 API（任务状态 + 生成文件登记） | 确认方案 → 渲染进度可见 → 完成后 mp4 可预览/下载；失败展示安全消息 + 修改入口不伪造成功；`.draft` 下载仍可用；轮询终态/离页停止 |
-| W-QE2 | 素材自动发现 | 快速剪辑页素材区「自动发现」分组 + 扫描状态提示 | B38 扫描登记 API（`source_type=scan` 素材列表） | 自动发现素材卡片与手动上传一致（文件名/时长/分辨率）；仅本人可见；无权限/空态/重试状态完整 |
 | W-QE3 | 自然语言一句话解析 | 快速剪辑 chat 输入与「已理解」确认卡（可修正后直接生成方案） | B39 chat LLM 解析 API | 一句话 → 确认卡展示结构化参数 → 确认后直接生成方案；AI 禁用时回退分步引导按钮；无 Prompt 渲染 |
 
-执行规则：W-QE1 → W-QE2 → W-QE3 顺序推进（对应后端 B37-B39）；每个切片先补 `api/` DTO→ViewModel 映射与单测，再补页面/组件测试，最后执行 lint、unit、build；未发布字段采用“功能隐藏”而不是假数据。
-
-W-QE1 前端准备（2026-08-14）：`QuickEdit.vue` 已在任务 `rendering` 时展示安全进度；只在 B37 的任务或 Run 公开返回有效 `Mp4FileId`、`mp4FileId` 或 `mp4_file_id` 后申请 readToken、填充 `<video>` 预览并提供 mp4 下载，绝不从原始 `Result` 向页面泄露内容；新文件登记时会替换旧预览，短期 readToken 失败提供页内重试；渲染失败明确提示「视频未生成」并保留修改方案后的重试入口；`.draft` 已降级为「进阶：去剪映精剪」。确认后若后端仍在异步渲染会重新开始轮询，终态或离页停止。后端当前仍在排查 `Clipping:Render` 运行时配置加载，待修复、部署及非敏感样片联调后才可将 W-QE1 标记为完成。
+执行规则：W-QE3 仅在 B39 API 已部署且公开 DTO、错误语义和权限边界已确认后实施。每个切片先补 `api/` DTO→ViewModel 映射与单测，再补页面/组件测试，最后执行 lint、unit、build；未发布字段采用“功能隐藏”而不是假数据。
 
 HA MCP Web 主线（Web 总设计 §7.8；严格跟随后端 H1-H5、M1-M2 发布，不并行虚构接口）：
 

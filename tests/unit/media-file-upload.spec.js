@@ -3,6 +3,7 @@ import MediaFileUpload from '../../src/components/media/MediaFileUpload.vue'
 import * as skillApi from '../../src/api/skill'
 
 jest.mock('../../src/api/skill', () => ({
+  listClippingMaterials: jest.fn(),
   uploadClippingMaterial: jest.fn(),
   deleteClippingMaterial: jest.fn()
 }))
@@ -28,7 +29,13 @@ const materialView = {
   createdAt: '2026-08-09T03:00:00Z'
 }
 
+const scannedMaterial = Object.assign({}, materialView, { id: 8, fileName: 'auto.mp4', sourceType: 'scan' })
+
 describe('MediaFileUpload', () => {
+  beforeEach(() => {
+    skillApi.listClippingMaterials.mockResolvedValue([])
+  })
+
   afterEach(() => jest.clearAllMocks())
 
   it('uploads a file and emits uploaded with the material view', async () => {
@@ -64,12 +71,38 @@ describe('MediaFileUpload', () => {
     wrapper.setData({ materials: [materialView] })
     await wrapper.vm.$nextTick()
 
-    await wrapper.vm.remove(7)
+    await wrapper.vm.remove(materialView)
     await flushPromises()
 
     expect(skillApi.deleteClippingMaterial).toHaveBeenCalledWith({ id: 7 })
     expect(wrapper.vm.materials).toEqual([])
     expect(wrapper.emitted('removed')[0][0]).toBe(7)
+    wrapper.destroy()
+  })
+
+  it('groups auto-discovered materials and makes them available to the editor', async () => {
+    skillApi.listClippingMaterials.mockResolvedValue([materialView, scannedMaterial])
+    const wrapper = shallowMount(MediaFileUpload, { mocks, stubs })
+
+    await flushPromises()
+
+    expect(skillApi.listClippingMaterials).toHaveBeenCalledTimes(1)
+    expect(wrapper.vm.manualMaterials).toEqual([materialView])
+    expect(wrapper.vm.scannedMaterials).toEqual([scannedMaterial])
+    expect(wrapper.emitted('available')[0][0]).toEqual([materialView, scannedMaterial])
+    wrapper.destroy()
+  })
+
+  it('shows a retryable error when materials cannot be listed', async () => {
+    skillApi.listClippingMaterials.mockRejectedValueOnce({ message: 'temporary failure' })
+    const wrapper = shallowMount(MediaFileUpload, { mocks, stubs })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('temporary failure')
+    skillApi.listClippingMaterials.mockResolvedValue([])
+    await wrapper.vm.loadMaterials()
+    expect(skillApi.listClippingMaterials).toHaveBeenCalledTimes(2)
     wrapper.destroy()
   })
 })

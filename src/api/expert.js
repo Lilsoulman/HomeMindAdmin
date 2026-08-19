@@ -50,6 +50,12 @@ export function getRunActions({ id }) {
     .then(toActions)
 }
 
+export function listRuns({ sourceType, limit = 50 } = {}) {
+  return request
+    .get('/api/v1/expert-runs', { params: cleanParams({ sourceType, limit }) })
+    .then((items) => (Array.isArray(items) ? items.map(toRun) : []))
+}
+
 export function confirmRunAction({ runId, actionId, idempotencyKey }) {
   return request
     .post(`/api/v1/expert-runs/${runId}/actions/${actionId}/confirm`, { idempotencyKey })
@@ -111,7 +117,8 @@ function toRun(dto = {}) {
     engineStage: dto.EngineStage,
     version: dto.Version,
     versionHistory: Array.isArray(dto.VersionHistory) ? dto.VersionHistory.map(toVersionHistoryItem) : [],
-    mp4FileId: readMp4FileId(readPublicMp4FileId(dto))
+    // B37 渲染登记只写入 run.Result JSON（mp4_file_id），顶层字段不存在时从 Result 兜底解析
+    mp4FileId: readMp4FileId(readPublicMp4FileId(dto) ?? readResultMp4FileId(dto.Result))
   }
 }
 
@@ -124,6 +131,15 @@ function readPublicMp4FileId(dto) {
   if (dto.Mp4FileId !== undefined) return dto.Mp4FileId
   if (dto.mp4FileId !== undefined) return dto.mp4FileId
   return dto.mp4_file_id
+}
+
+function readResultMp4FileId(resultJson) {
+  if (!resultJson) return undefined
+  try {
+    return readPublicMp4FileId(JSON.parse(resultJson))
+  } catch (error) {
+    return undefined
+  }
 }
 
 function toRunEvent(dto = {}) {

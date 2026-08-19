@@ -1,4 +1,4 @@
-import { confirmRunAction, createExpert, getExpert, getRun, getRunActions, getRunEvents, listExperts, removeExpert, updateExpert } from '../../src/api/expert'
+import { confirmRunAction, createExpert, getExpert, getRun, getRunActions, getRunEvents, listExperts, listRuns, removeExpert, updateExpert } from '../../src/api/expert'
 
 jest.mock('../../src/utils/request', () => ({
   request: { get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() }
@@ -108,6 +108,32 @@ describe('expert api mapping', () => {
     expect(run.versionHistory).toEqual([{ version: 3, description: '调整片头', createdAt: '2026-08-02T03:11:30Z' }])
     expect(run).not.toHaveProperty('input')
     expect(run).not.toHaveProperty('result')
+  })
+
+  it('lists skill runs with sourceType and maps mp4 file ids', async () => {
+    request.get.mockResolvedValue([
+      { Id: 10, SourceType: 'skill', Status: 'completed', Result: '{"skill_run":"quick_edit","status":"completed","mp4_file_id":902}', ResultSummary: '粗剪视频已生成，可预览或下载。', CreatedAt: '2026-08-14T03:00:00Z', FinishedAt: '2026-08-14T03:01:00Z' },
+      { Id: 9, SourceType: 'skill', Status: 'failed', ResultSummary: '草稿生成失败。', CreatedAt: '2026-08-13T03:00:00Z' }
+    ])
+
+    const runs = await listRuns({ sourceType: 'skill', limit: 50 })
+
+    expect(request.get).toHaveBeenCalledWith('/api/v1/expert-runs', { params: { sourceType: 'skill', limit: 50 } })
+    expect(runs).toHaveLength(2)
+    expect(runs[0].mp4FileId).toBe(902)
+    expect(runs[1].mp4FileId).toBeUndefined()
+  })
+
+  it('falls back to mp4_file_id inside Result JSON when no top-level field', async () => {
+    request.get.mockResolvedValue({
+      id: 10, SourceType: 'skill', status: 'completed',
+      Result: '{"skill_run":"quick_edit","status":"completed","mp4_file_id":902,"size_bytes":12345}',
+      ResultSummary: '粗剪视频已生成，可预览或下载。', CreatedAt: '2026-08-14T03:00:00Z', FinishedAt: '2026-08-14T03:01:00Z'
+    })
+
+    const run = await getRun({ id: 10 })
+
+    expect(run.mp4FileId).toBe(902)
   })
 
   it('maps only public engine progress fields from event payload', async () => {

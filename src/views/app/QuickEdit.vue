@@ -37,7 +37,7 @@
       <template v-if="activeStep === 1">
         <header class="panel-heading run-section-heading"><div><p class="eyebrow">素材</p><h2>上传或填入素材</h2></div></header>
         <div class="media-source">
-          <MediaFileUpload @uploaded="onUploaded" @removed="onRemoved" />
+          <MediaFileUpload @available="onMaterialsAvailable" @uploaded="onUploaded" @removed="onRemoved" />
           <div class="media-source__path">
             <el-input v-model="pathInput" size="small" placeholder="本机/NAS 素材路径，例如 /nas/videos/探店.mp4" />
             <el-button size="small" :disabled="!pathInput.trim()" @click="addPath">添加路径</el-button>
@@ -65,15 +65,17 @@
           <div v-if="run.finishedAt"><dt>结束时间</dt><dd>{{ formatTime(run.finishedAt) }}</dd></div>
         </dl>
 
-        <section v-if="engineProgress.length" class="quick-edit-progress" aria-label="剪辑引擎进度">
+        <section v-if="engineProgress.length || engineFeedbackNotice" class="quick-edit-progress" aria-label="剪辑引擎进度">
           <p class="eyebrow">引擎进度</p>
-          <ul class="quick-edit-engine-list">
+          <ul v-if="engineProgress.length" class="quick-edit-engine-list">
             <li v-for="stage in engineProgress" :key="stage.key">
               <strong>{{ stage.label }}</strong>
               <el-tag size="mini" effect="plain" :type="engineStatusTagType(stage.status)">{{ engineStatusLabel(stage.status) }}</el-tag>
               <span v-if="stage.message">{{ stage.message }}</span>
             </li>
           </ul>
+          <p v-if="engineFeedbackNotice" class="quick-edit-progress__notice">{{ engineFeedbackNotice }}</p>
+          <p v-if="engineCapabilityNotice" class="quick-edit-progress__notice">{{ engineCapabilityNotice }}</p>
         </section>
 
         <template v-if="actions.length">
@@ -159,9 +161,10 @@
 </template>
 
 <script>
-import { chatClipping, confirmSkillAction, createSkillRun, getClippingTask, getFileReadToken, reviseSkillRun } from '../../api/skill'
+import { chatClipping, confirmSkillAction, createSkillRun, fetchFileContent, getClippingTask, getFileReadToken, reviseSkillRun } from '../../api/skill'
 import { getRun, getRunActions, getRunEvents } from '../../api/expert'
 import { createIdempotencyKey } from '../../utils/idempotency'
+import { triggerDownload } from '../../utils/download'
 import MediaFileUpload from '../../components/media/MediaFileUpload.vue'
 import PlanTimeline from '../../components/media/PlanTimeline.vue'
 
@@ -267,11 +270,30 @@ export default {
         return result
       }, {})
       const taskStage = this.clippingTask && this.clippingTask.engineStage
-      return ENGINE_STAGES.map((stage) => {
+      return ENGINE_STAGES.reduce((result, stage) => {
         const event = latestEvents[stage.key]
-        const isCurrentTaskStage = !event && taskStage === stage.key
-        return Object.assign({}, stage, event || (isCurrentTaskStage ? { status: 'running' } : { status: 'waiting' }))
-      })
+        if (event) result.push(Object.assign({}, stage, event))
+        else if (taskStage === stage.key) result.push(Object.assign({}, stage, { status: 'running', message: '任务当前公开阶段' }))
+        return result
+      }, [])
+    },
+    unreportedEngineStages() {
+      const reported = this.engineProgress.map((stage) => stage.key)
+      return ENGINE_STAGES.filter((stage) => !reported.includes(stage.key))
+    },
+    engineFeedbackNotice() {
+      if (!this.unreportedEngineStages.length) return ''
+      const names = this.unreportedEngineStages.map((stage) => stage.label).join('、')
+      const taskStage = this.clippingTask && this.clippingTask.engineStage
+      const detail = taskStage && !ENGINE_STAGES.some((stage) => stage.key === taskStage)
+        ? `当前任务仅返回“${taskStage}”阶段。`
+        : '当前任务未返回这些阶段的公开事件。'
+      return `暂无 ${names} 的实时引擎反馈：${detail} 未收到事件不代表能力未接入或任务未执行。`
+    },
+    engineCapabilityNotice() {
+      const seedanceStatus = this.useSeedance ? 'Seedance 本次已请求，等待服务端事件确认。' : 'Seedance 本次未启用。'
+      if (!this.unreportedEngineStages.length) return seedanceStatus
+      return `${seedanceStatus} 其他引擎的接入、配置和可用性状态当前接口未提供，前端无法据此判断能力是否已接入。`
     }
   },
   watch: {
@@ -332,8 +354,15 @@ export default {
       this.materialPaths = [...new Set([...this.materialPaths, material.storagePath])]
       this.syncChatContext()
     },
-    onRemoved() {
-      // 素材卡片移除不改变已回填路径（路径已进入 Skill 输入），仅重推上下文保留现状
+    onMaterialsAvailable(materials = []) {
+      const paths = materials.map((material) => material.storagePath).filter(Boolean)
+      this.materialPaths = [...new Set([...this.materialPaths, ...paths])]
+      this.syncChatContext()
+    },
+    onRemoved(id, material) {
+      if (id && material && material.storagePath) {
+        this.materialPaths = this.materialPaths.filter((path) => path !== material.storagePath)
+      }
       this.syncChatContext()
     },
     addPath() {
@@ -544,21 +573,23 @@ export default {
       const fileId = this.mp4FileId
       if (!fileId || this.preparingPreview || (this.previewUrl && this.previewFileId === fileId)) return
       if (this.previewFileId !== fileId) {
-        this.previewUrl = ''
+        this.revokePreviewUrl()
         this.previewFileId = null
       }
       this.previewError = false
       this.preparingPreview = true
       try {
         const { readUrl } = await getFileReadToken({ fileId })
+        const blobUrl = await fetchFileContent({ readUrl })
         if (this.pageAlive && this.mp4FileId === fileId) {
-          this.previewUrl = this.resolveReadUrl(readUrl)
+          this.revokePreviewUrl()
+          this.previewUrl = blobUrl
           this.previewFileId = fileId
         }
       } catch (error) {
         if (this.pageAlive && this.mp4FileId === fileId) {
           this.previewError = true
-          this.$message.error(error.message || '视频预览链接生成失败，请重试。')
+          this.$message.error(error.message || '视频预览加载失败，请重试。')
         }
       } finally {
         if (this.pageAlive) this.preparingPreview = false
@@ -569,18 +600,22 @@ export default {
       this.downloadingMp4 = true
       try {
         const { readUrl } = await getFileReadToken({ fileId: this.mp4FileId })
-        window.open(this.resolveReadUrl(readUrl), '_blank')
+        const blobUrl = await fetchFileContent({ readUrl })
+        triggerDownload(blobUrl, 'quick-edit.mp4')
       } catch (error) {
-        this.$message.error(error.message || '视频下载链接生成失败，请重试。')
+        this.$message.error(error.message || '视频下载失败，请重试。')
       } finally {
         this.downloadingMp4 = false
       }
     },
-    resolveReadUrl(readUrl) {
-      return readUrl.startsWith('http') ? readUrl : `${process.env.VUE_APP_API_BASE_URL || ''}/${readUrl.replace(/^\/+/, '')}`
+    revokePreviewUrl() {
+      if (this.previewUrl) {
+        URL.revokeObjectURL(this.previewUrl)
+        this.previewUrl = ''
+      }
     },
     clearMp4Preview() {
-      this.previewUrl = ''
+      this.revokePreviewUrl()
       this.previewFileId = null
       this.previewError = false
       this.preparingPreview = false

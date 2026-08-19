@@ -46,7 +46,21 @@ export function getFileReadToken({ fileId }) {
     .then(toReadToken)
 }
 
+// content 端点仅接受 Bearer 鉴权（浏览器 video/a[download] 带不了 header），
+// 故经 axios 请求 Blob 后生成本地对象 URL 供预览与下载。
+export function fetchFileContent({ readUrl, timeout = 120000 }) {
+  return request
+    .get(readUrl, { responseType: 'blob', timeout })
+    .then((blob) => URL.createObjectURL(blob))
+}
+
 // ─── 素材登记（B29）───
+
+export function listClippingMaterials() {
+  return request
+    .get('/api/v1/clipping/materials')
+    .then((items) => (Array.isArray(items) ? items.map(toMaterial) : []))
+}
 
 export function uploadClippingMaterial({ file, onProgress }) {
   const formData = new FormData()
@@ -137,6 +151,7 @@ function toMaterial(dto = {}) {
     width: dto.Width,
     height: dto.Height,
     storagePath: dto.StoragePath,
+    sourceType: dto.SourceType === 'scan' ? 'scan' : 'upload',
     createdAt: dto.CreatedAt
   }
 }

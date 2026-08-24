@@ -106,7 +106,7 @@ export default {
     this.loadMembers()
     this.loadConnectors()
   },
-  destroyed() {
+  unmounted() {
     this.pageAlive = false
   },
   methods: {

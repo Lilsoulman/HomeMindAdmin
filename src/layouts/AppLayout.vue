@@ -1,5 +1,5 @@
 <template>
-  <MainLayout :items="items" area="家庭空间" />
+  <MainLayout :items="items" area="家庭控制" />
 </template>
 
 <script>
@@ -10,19 +10,11 @@ export default {
   data() {
     return {
       items: [
-        { index: '/app/overview', label: '家庭概览', icon: 'el-icon-data-analysis', permission: 'smart_home.read' },
-        { index: '/app/confirmations', label: '确认中心', icon: 'el-icon-finished', permission: 'confirmation.read' },
-        { index: '/app/activities', label: '管家动态', icon: 'el-icon-time', permission: 'steward.activity.read' },
-        { index: '/app/family', label: '家庭成员与知识', icon: 'el-icon-user', permission: 'family.read' },
-        { index: '/app/memories', label: '学习记忆库', icon: 'el-icon-collection-tag', permission: 'memory.read' },
-        { index: '/app/life/favorites', label: '我的偏好', icon: 'el-icon-star-off', permission: 'life.favorite.read' },
-        { index: '/app/connections', label: '我的连接', icon: 'el-icon-connection', permission: 'connector.read' },
-        { index: '/app/experts', label: '我的专家', icon: 'el-icon-magic-stick', permission: 'ai.read' },
-        { index: '/app/skills', label: '我的技能', icon: 'el-icon-cpu', permission: 'ai.skills.read' },
-        { index: '/app/media/quick-edit', label: '快速剪辑', icon: 'el-icon-video-camera', permission: 'media.read' },
-        { index: '/app/media/clips', label: '历史剪辑', icon: 'el-icon-film', permission: 'media.read' },
-        { index: '/app/tools/mindmap', label: '思维导图', icon: 'el-icon-share', permission: 'mindmap.read' },
-        { index: '/app/connections/xhs', label: '小红书工作台', icon: 'el-icon-edit-outline', permission: 'connector.read' }
+        { index: '/app/dashboard', label: '仪表盘', icon: 'el-icon-data-analysis', permission: 'smart_home.read' },
+        { index: '/app/devices', label: '设备管理', icon: 'el-icon-setting', permission: 'smart_home.read' },
+        { index: '/app/scenes', label: '场景配置', icon: 'el-icon-magic-stick', permission: 'smart_home.read' },
+        { index: '/app/memories', label: '记忆管理', icon: 'el-icon-collection-tag', permission: 'memory.read' },
+        { index: '/app/settings', label: '系统设置', icon: 'el-icon-tools', permission: 'smart_home.write' }
       ]
     }
   }

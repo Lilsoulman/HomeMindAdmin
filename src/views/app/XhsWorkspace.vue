@@ -120,9 +120,9 @@
       </section>
     </template>
 
-    <el-dialog title="笔记详情" :visible.sync="detailVisible" width="620px">
+    <AppDialog v-model="detailVisible" title="笔记详情" width="620px">
       <div v-if="noteDetail" class="xhs-note-detail"><h2>{{ noteDetail.title }}</h2><p class="xhs-note-detail__content">{{ noteDetail.content }}</p><div v-if="noteDetail.images.length" class="xhs-note-detail__images"><img v-for="image in noteDetail.images" :key="image" :src="image" alt="笔记图片"></div></div>
-    </el-dialog>
+    </AppDialog>
   </section>
 </template>
 
@@ -205,7 +205,7 @@ export default {
   created() {
     this.loadAuthStatus()
   },
-  destroyed() {
+  unmounted() {
     this.pageAlive = false
     this.releaseMediaPreviews()
   },

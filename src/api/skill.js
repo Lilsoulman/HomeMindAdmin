@@ -161,7 +161,18 @@ function toChat(dto = {}) {
     reply: dto.Reply,
     suggestions: Array.isArray(dto.Suggestions) ? dto.Suggestions : [],
     context: toChatContext(dto.Context),
-    taskId: dto.TaskId
+    taskId: dto.TaskId,
+    confirmation: toChatConfirmation(dto.Confirmation || dto.confirmation)
+  }
+}
+
+function toChatConfirmation(dto) {
+  if (!dto || typeof dto !== 'object') return null
+  const parameters = dto.Parameters !== undefined ? dto.Parameters : dto.parameters
+  return {
+    title: typeof (dto.Title !== undefined ? dto.Title : dto.title) === 'string' ? (dto.Title !== undefined ? dto.Title : dto.title) : '',
+    summary: typeof (dto.Summary !== undefined ? dto.Summary : dto.summary) === 'string' ? (dto.Summary !== undefined ? dto.Summary : dto.summary) : '',
+    parameters: Array.isArray(parameters) ? parameters.filter((parameter) => typeof parameter === 'string') : []
   }
 }
 

@@ -32,7 +32,7 @@
         </ul>
       </section>
 
-      <el-dialog :title="dialog.isEdit ? '编辑专家' : '新建专家'" :visible.sync="dialog.visible" width="560px" :close-on-click-modal="false">
+      <AppDialog v-model="dialog.visible" :title="dialog.isEdit ? '编辑专家' : '新建专家'" width="560px" :close-on-click-modal="false">
         <div v-if="dialog.loading" class="overview-page__loading"><i class="el-icon-loading" /> 正在加载详情</div>
         <el-form v-else label-width="96px" size="small">
           <el-form-item label="名称" required>
@@ -67,7 +67,7 @@
             @click="save"
           >保存</el-button>
         </span>
-      </el-dialog>
+      </AppDialog>
     </template>
   </section>
 </template>
@@ -99,7 +99,7 @@ export default {
   created() {
     this.load()
   },
-  destroyed() {
+  unmounted() {
     this.pageAlive = false
   },
   methods: {

@@ -1,16 +1,20 @@
-import Vue from 'vue'
-import ElementUI from 'element-ui'
-import 'element-ui/lib/theme-chalk/index.css'
+import { createApp } from 'vue'
+import ElementPlus from 'element-plus'
+import 'element-plus/dist/index.css'
 import App from './App.vue'
+import AppDialog from './components/common/AppDialog.vue'
+import StatusTag from './components/common/StatusTag.vue'
 import router from './router'
 import store from './store'
 import './styles/index.scss'
 
-Vue.config.productionTip = false
-Vue.use(ElementUI)
+const app = createApp(App)
 
-new Vue({
-  router,
-  store,
-  render: (h) => h(App)
-}).$mount('#app')
+app
+  .use(store)
+  .use(router)
+  .use(ElementPlus)
+
+app.component('AppDialog', AppDialog)
+app.component('StatusTag', StatusTag)
+app.mount('#app')

@@ -1,9 +1,9 @@
 <template>
   <el-container class="main-layout">
     <aside class="main-layout__sidebar">
-      <router-link class="product-name" to="/app/overview">
-        <span class="product-name__mark">N</span>
-        <span>NexusMind</span>
+      <router-link class="product-name" to="/app/dashboard">
+        <span class="product-name__mark">H</span>
+        <span>HomeMind</span>
       </router-link>
       <p class="main-layout__area">{{ area }}</p>
       <el-menu :default-active="$route.path" router class="main-layout__menu">
@@ -13,10 +13,10 @@
         </el-menu-item>
       </el-menu>
       <div class="main-layout__bottom">
-        <router-link class="profile-link" to="/app/profile">
+        <div class="profile-link">
           <el-avatar :size="32">{{ avatarText }}</el-avatar>
           <span>{{ displayName }}</span>
-        </router-link>
+        </div>
         <el-button class="icon-button" icon="el-icon-switch-button" type="text" title="退出登录" @click="handleSignOut" />
       </div>
     </aside>
@@ -26,8 +26,6 @@
           <p class="eyebrow">{{ area }}</p>
           <h2>{{ $route.meta.title }}</h2>
         </div>
-        <router-link v-if="isConsole" class="area-switch" to="/app/overview">进入家庭空间 <i class="el-icon-right" /></router-link>
-        <router-link v-else-if="canManage" class="area-switch" to="/console/connectors">开发控制台 <i class="el-icon-right" /></router-link>
       </header>
       <main class="main-layout__page">
         <router-view />
@@ -54,12 +52,6 @@ export default {
     avatarText() {
       return this.displayName.slice(0, 1)
     },
-    canManage() {
-      return hasPermission(this.$store.state.auth.role, 'connector.write')
-    },
-    isConsole() {
-      return this.$route.path.startsWith('/console')
-    }
   },
   methods: {
     async handleSignOut() {

@@ -43,7 +43,7 @@ export default {
   data() {
     return { markdown: '', map: null, root: null, run: null, loading: false, error: '' }
   },
-  beforeDestroy() {
+  beforeUnmount() {
     if (this.map) this.map.destroy()
   },
   methods: {

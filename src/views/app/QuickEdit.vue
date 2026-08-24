@@ -29,8 +29,16 @@
         <el-button v-for="suggestion in suggestions" :key="suggestion" size="mini" plain @click="applySuggestion(suggestion)">{{ suggestion }}</el-button>
       </div>
 
+      <ClippingGoalConfirmationCard
+        v-if="chatConfirmation"
+        :confirmation="chatConfirmation"
+        :confirming="submitting"
+        @confirm="confirmParsedGoal"
+        @edit="editParsedGoal"
+      />
+
       <div class="chat-input">
-        <el-input v-model="draft" size="small" placeholder="告诉我怎么剪，例如：竖屏 30 秒，加字幕" @keyup.enter.native="send" />
+        <el-input ref="chatInput" v-model="draft" size="small" placeholder="告诉我怎么剪，例如：竖屏 30 秒，加字幕" @keyup.enter.native="send" />
         <el-button type="primary" size="small" :loading="chatThinking" :disabled="!draft.trim() || chatThinking" @click="send">发送</el-button>
       </div>
 
@@ -149,13 +157,13 @@
         <p v-else>暂无事件。</p>
       </template>
 
-      <el-dialog title="修改剪辑方案" :visible.sync="reviseDialogVisible" width="480px">
+      <AppDialog v-model="reviseDialogVisible" title="修改剪辑方案" width="480px">
         <el-input v-model="reviseInstruction" type="textarea" :rows="3" placeholder="例如：调整为横屏 60 秒，加配乐" />
         <span slot="footer">
           <el-button size="small" @click="reviseDialogVisible = false">取消</el-button>
           <el-button size="small" type="primary" :loading="revising" :disabled="!reviseInstruction.trim()" @click="revisePlan">提交修改</el-button>
         </span>
-      </el-dialog>
+      </AppDialog>
     </section>
   </section>
 </template>
@@ -167,6 +175,7 @@ import { createIdempotencyKey } from '../../utils/idempotency'
 import { triggerDownload } from '../../utils/download'
 import MediaFileUpload from '../../components/media/MediaFileUpload.vue'
 import PlanTimeline from '../../components/media/PlanTimeline.vue'
+import ClippingGoalConfirmationCard from '../../components/media/ClippingGoalConfirmationCard.vue'
 
 const statusLabels = { draft: '草稿', queued: '排队中', planning: '规划中', running: '运行中', completed: '已完成', failed: '失败', cancelled: '已取消' }
 const statusTagTypes = { draft: 'info', queued: 'info', planning: 'warning', running: 'warning', completed: 'success', failed: 'danger', cancelled: 'info' }
@@ -177,6 +186,8 @@ const terminalStatuses = ['completed', 'failed', 'cancelled']
 
 const ACTION_SUGGESTIONS = {
   生成方案: 'generatePlan',
+  确认生成方案: 'confirmParsedGoal',
+  修改需求: 'editParsedGoal',
   确认方案: 'confirmPending',
   修改目标重新生成: 'openReviseDialog',
   重新剪辑: 'reset'
@@ -192,7 +203,7 @@ const ENGINE_STAGES = [
 ]
 
 export default {
-  components: { MediaFileUpload, PlanTimeline },
+  components: { MediaFileUpload, PlanTimeline, ClippingGoalConfirmationCard },
   props: {
     pollInterval: { type: Number, default: 2500 }
   },
@@ -203,6 +214,7 @@ export default {
         { role: 'ai', text: '你好，我是快速剪辑助手。上传素材或填入素材路径，然后告诉我想要的剪辑效果，我来帮你生成剪辑方案与剪映草稿。' }
       ],
       chatContext: null,
+      chatConfirmation: null,
       clippingTask: null,
       chatThinking: false,
       suggestions: [],
@@ -254,7 +266,7 @@ export default {
       return action ? action.plan : { segments: [], audio: null, totalDuration: null }
     },
     canRevise() {
-      return this.run && this.run.status !== 'completed' && this.run.status !== 'cancelled'
+      return this.run && !terminalStatuses.includes(this.run.status)
     },
     reviseShortcuts() {
       return REVISE_SHORTCUTS
@@ -311,7 +323,7 @@ export default {
   mounted() {
     this.restoreTaskFromRoute()
   },
-  destroyed() {
+  unmounted() {
     this.pageAlive = false
     this.stopPolling()
   },
@@ -321,6 +333,7 @@ export default {
       if (!message || this.chatThinking) return
       this.draft = ''
       this.messages.push({ role: 'user', text: message })
+      this.chatConfirmation = null
       this.chatThinking = true
       try {
         const response = await chatClipping({ message, context: this.chatContext, taskId: this.clippingTask && this.clippingTask.id })
@@ -331,6 +344,7 @@ export default {
           this.syncTaskRoute(response.taskId)
         }
         this.suggestions = response.suggestions || []
+        this.chatConfirmation = response.confirmation
         this.messages.push({ role: 'ai', text: response.reply })
       } catch (error) {
         if (this.pageAlive) {
@@ -350,8 +364,18 @@ export default {
         this.send()
       }
     },
+    confirmParsedGoal() {
+      this.generatePlan()
+    },
+    editParsedGoal() {
+      this.draft = '请将剪辑需求修改为：'
+      this.$nextTick(() => {
+        const input = this.$refs.chatInput
+        if (input && typeof input.focus === 'function') input.focus()
+      })
+    },
     onUploaded(material) {
-      this.materialPaths = [...new Set([...this.materialPaths, material.storagePath])]
+      this.materialPaths = [material.storagePath, ...this.materialPaths.filter((path) => path !== material.storagePath)]
       this.syncChatContext()
     },
     onMaterialsAvailable(materials = []) {
@@ -368,7 +392,7 @@ export default {
     addPath() {
       const path = this.pathInput.trim()
       if (!path) return
-      this.materialPaths = [...new Set([...this.materialPaths, path])]
+      this.materialPaths = [path, ...this.materialPaths.filter((item) => item !== path)]
       this.pathInput = ''
       this.syncChatContext()
     },
@@ -389,8 +413,11 @@ export default {
       const instruction = this.chatContext && this.chatContext.goal
       const input = instruction ? { media_location: this.materialPaths[0], instruction } : { media_location: this.materialPaths[0] }
       if (this.useSeedance && this.seedanceCostConfirmed) input.allowSeedance = true
+      this.createPlanRun(input)
+    },
+    createPlanRun(input, rethrow = false) {
       const inputJson = JSON.stringify(input)
-      createSkillRun({ skillCode: 'quick-edit', inputJson, idempotencyKey: createIdempotencyKey(), taskId: this.clippingTask && this.clippingTask.id })
+      return createSkillRun({ skillCode: 'quick-edit', inputJson, idempotencyKey: createIdempotencyKey(), taskId: this.clippingTask && this.clippingTask.id })
         .then((run) => {
           if (!this.pageAlive) return
           this.run = run
@@ -406,6 +433,7 @@ export default {
               this.$message.error(error.message || '提交失败，请重试。')
             }
           }
+          if (rethrow) throw error
         })
         .finally(() => {
           if (this.pageAlive) this.submitting = false
@@ -535,6 +563,15 @@ export default {
       if (!instruction || this.revising) return
       this.revising = true
       try {
+        if (this.run && terminalStatuses.includes(this.run.status)) {
+          const input = { media_location: this.materialPaths[0], instruction }
+          if (this.useSeedance && this.seedanceCostConfirmed) input.allowSeedance = true
+          await this.createPlanRun(input, true)
+          if (!this.pageAlive) return
+          this.$message.success('原运行已结束，已按修改内容重新生成方案。')
+          this.reviseDialogVisible = false
+          return
+        }
         const run = await reviseSkillRun({ runId: this.run.id, instruction, idempotencyKey: createIdempotencyKey() })
         if (!this.pageAlive) return
         this.run = run
@@ -546,8 +583,19 @@ export default {
           this.chatContext = Object.assign({}, this.chatContext, { step: 'reviewing', goal: instruction, planGenerated: true })
         }
       } catch (error) {
-        if (error.status === 409) {
+        if (error.code === 40000 || error.status === 409) {
           this.$message.warning('方案已确认或运行已终态，不能再次修订。')
+          if (error.code === 40000) {
+            try {
+              const latest = await getRun({ id: this.run.id })
+              if (this.pageAlive) {
+                this.run = latest
+                await Promise.all([this.fetchActions(), this.fetchClippingTask()])
+              }
+            } catch (refreshError) {
+              this.$message.warning(refreshError.message || '运行状态刷新失败，请手动刷新。')
+            }
+          }
         } else {
           this.$message.error(error.message || '方案修订失败，请重试。')
         }
@@ -630,6 +678,7 @@ export default {
       this.clearMp4Preview()
       this.confirmMessage = ''
       this.suggestions = []
+      this.chatConfirmation = null
       this.chatContext = null
       this.clippingTask = null
       this.materialPaths = []

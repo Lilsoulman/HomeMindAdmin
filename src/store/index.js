@@ -1,10 +1,7 @@
-import Vue from 'vue'
-import Vuex from 'vuex'
+import { createStore } from 'vuex'
 import auth, { installAuthRefresh } from './modules/auth'
 
-Vue.use(Vuex)
-
-const store = new Vuex.Store({
+const store = createStore({
   modules: { auth }
 })
 

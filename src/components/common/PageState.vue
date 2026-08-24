@@ -3,7 +3,7 @@
     <i :class="icon" />
     <h3>{{ title }}</h3>
     <p>{{ description }}</p>
-    <el-button v-if="$listeners.retry" type="primary" size="small" @click="$emit('retry')">重试</el-button>
+    <el-button v-if="hasRetryListener" type="primary" size="small" @click="$emit('retry')">重试</el-button>
   </section>
 </template>
 
@@ -14,7 +14,11 @@ export default {
     title: { type: String, required: true },
     description: { type: String, required: true }
   },
+  emits: ['retry'],
   computed: {
+    hasRetryListener() {
+      return Boolean(this.$attrs.onRetry)
+    },
     icon() {
       return this.type === 'error' ? 'el-icon-warning-outline' : 'el-icon-folder-opened'
     }

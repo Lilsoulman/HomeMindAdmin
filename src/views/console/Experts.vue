@@ -62,7 +62,7 @@
         </el-tabs>
       </section>
 
-      <el-dialog title="专家详情" :visible.sync="detailDialog.visible" width="560px">
+      <AppDialog v-model="detailDialog.visible" title="专家详情" width="560px">
         <div v-if="detailDialog.loading" class="overview-page__loading"><i class="el-icon-loading" /> 正在加载</div>
         <PageState v-else-if="detailDialog.error" type="error" title="详情暂不可用" :description="detailDialog.error.message" @retry="openDetail(detailDialog.item)" />
         <div v-else-if="detailDialog.detail" class="expert-detail">
@@ -85,7 +85,7 @@
         <span slot="footer">
           <el-button size="small" @click="detailDialog.visible = false">关闭</el-button>
         </span>
-      </el-dialog>
+      </AppDialog>
     </template>
   </section>
 </template>
@@ -142,7 +142,7 @@ export default {
   created() {
     this.load()
   },
-  destroyed() {
+  unmounted() {
     this.pageAlive = false
   },
   methods: {

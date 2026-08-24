@@ -15,7 +15,7 @@
           </li>
         </ul>
       </section>
-      <el-dialog title="技能详情" :visible.sync="detailDialog.visible" width="560px">
+      <AppDialog v-model="detailDialog.visible" title="技能详情" width="560px">
         <div v-if="detailDialog.loading" class="overview-page__loading"><i class="el-icon-loading" /> 正在加载</div>
         <PageState v-else-if="detailDialog.error" type="error" title="详情暂不可用" :description="detailDialog.error.message" @retry="openDetail(detailDialog.item)" />
         <dl v-else-if="detailDialog.detail" class="activity-detail-dl">
@@ -26,7 +26,7 @@
           <div v-if="detailDialog.detail.prompt"><dt>提示词</dt><dd><pre class="expert-detail__json">{{ detailDialog.detail.prompt }}</pre></dd></div>
         </dl>
         <span slot="footer"><el-button size="small" @click="detailDialog.visible = false">关闭</el-button></span>
-      </el-dialog>
+      </AppDialog>
     </template>
   </section>
 </template>
@@ -40,7 +40,7 @@ export default {
   data() { return { loading: true, error: null, items: [], detailDialog: { visible: false, item: null, detail: null, loading: false, error: null }, pageAlive: true } },
   computed: { errorTitle() { return this.error && this.error.status === 403 ? '暂无我的技能权限' : '我的技能暂不可用' } },
   created() { this.load() },
-  destroyed() { this.pageAlive = false },
+  unmounted() { this.pageAlive = false },
   methods: {
     async load() {
       this.loading = true; this.error = null

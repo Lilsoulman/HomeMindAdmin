@@ -81,7 +81,7 @@
         </el-table>
       </section>
 
-      <el-dialog title="拒绝确认事项" :visible.sync="denyDialog.visible" width="440px" :close-on-click-modal="false">
+      <AppDialog v-model="denyDialog.visible" title="拒绝确认事项" width="440px" :close-on-click-modal="false">
         <p class="deny-dialog__hint">请说明拒绝原因（1-512 字符），将写入家庭审计记录。</p>
         <el-input
           v-model="denyDialog.reason"
@@ -101,7 +101,7 @@
             @click="denyOne"
           >确认拒绝</el-button>
         </span>
-      </el-dialog>
+      </AppDialog>
     </template>
   </section>
 </template>
@@ -179,7 +179,7 @@ export default {
   created() {
     this.load()
   },
-  destroyed() {
+  unmounted() {
     this.pageAlive = false
   },
   methods: {

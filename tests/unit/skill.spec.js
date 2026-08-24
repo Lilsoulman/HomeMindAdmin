@@ -125,11 +125,13 @@ describe('skill api mapping', () => {
     expect(request.delete).toHaveBeenCalledWith('/api/v1/clipping/materials/7')
   })
 
-  it('chats with clipping guide and maps reply/suggestions/context to camelCase', async () => {
+  it('maps the B39 confirmation card without consuming unpublished AI fields', async () => {
     request.post.mockResolvedValue({
       Reply: '好的，我来帮你剪视频。',
       Suggestions: ['上传素材', '填写素材路径'],
-      Context: { Step: 'collecting_materials', Materials: ['D:\\data\\a.mp4'], Goal: '竖屏 30 秒', PlanGenerated: null }, TaskId: 31
+      Context: { Step: 'generating_plan', Materials: ['D:\\data\\a.mp4'], Goal: '竖屏 30 秒', PlanGenerated: false },
+      TaskId: 31,
+      Confirmation: { Title: '已理解', Summary: '30 秒竖屏快节奏，添加字幕', Parameters: ['时长：30 秒', '画幅：竖屏', '风格：快节奏', '字幕：添加'] }
     })
 
     const response = await chatClipping({ message: '帮我剪视频', context: null, taskId: 31 })
@@ -138,7 +140,9 @@ describe('skill api mapping', () => {
     expect(response).toEqual({
       reply: '好的，我来帮你剪视频。',
       suggestions: ['上传素材', '填写素材路径'],
-      context: { step: 'collecting_materials', materials: ['D:\\data\\a.mp4'], goal: '竖屏 30 秒', planGenerated: null, taskId: undefined }, taskId: 31
+      context: { step: 'generating_plan', materials: ['D:\\data\\a.mp4'], goal: '竖屏 30 秒', planGenerated: false, taskId: undefined },
+      taskId: 31,
+      confirmation: { title: '已理解', summary: '30 秒竖屏快节奏，添加字幕', parameters: ['时长：30 秒', '画幅：竖屏', '风格：快节奏', '字幕：添加'] }
     })
   })
 

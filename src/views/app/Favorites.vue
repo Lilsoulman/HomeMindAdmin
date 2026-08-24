@@ -40,7 +40,7 @@
         </ul>
       </section>
 
-      <el-dialog :title="dialog.isEdit ? '编辑收藏' : '新增收藏'" :visible.sync="dialog.visible" width="480px" :close-on-click-modal="false">
+      <AppDialog v-model="dialog.visible" :title="dialog.isEdit ? '编辑收藏' : '新增收藏'" width="480px" :close-on-click-modal="false">
         <el-form label-width="86px" size="small">
           <el-form-item label="分类" required>
             <el-select v-model="dialog.category" style="width: 100%">
@@ -70,7 +70,7 @@
             @click="save"
           >保存</el-button>
         </span>
-      </el-dialog>
+      </AppDialog>
     </template>
   </section>
 </template>
@@ -124,7 +124,7 @@ export default {
   created() {
     this.load()
   },
-  destroyed() {
+  unmounted() {
     this.pageAlive = false
   },
   methods: {

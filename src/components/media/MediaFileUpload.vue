@@ -57,6 +57,7 @@ import { deleteClippingMaterial, listClippingMaterials, uploadClippingMaterial }
 
 export default {
   name: 'MediaFileUpload',
+  emits: ['available', 'uploaded', 'removed'],
   data() {
     return {
       materials: [],

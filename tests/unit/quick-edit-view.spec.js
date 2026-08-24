@@ -68,6 +68,12 @@ const goalChatResponse = {
   suggestions: ['生成方案'],
   context: { step: 'generating_plan', materials: ['D:\\data\\探店.mp4'], goal: '竖屏 30 秒', planGenerated: null }
 }
+const parsedGoalChatResponse = {
+  reply: '已理解：30 秒竖屏快节奏，添加字幕。确认后即可生成剪辑方案。',
+  suggestions: ['确认生成方案', '修改需求'],
+  context: { step: 'generating_plan', materials: ['D:\\data\\探店.mp4'], goal: '30 秒竖屏快节奏，添加字幕', planGenerated: false },
+  confirmation: { title: '已理解', summary: '30 秒竖屏快节奏，添加字幕', parameters: ['时长：30 秒', '画幅：竖屏', '风格：快节奏', '字幕：添加'] }
+}
 
 const findButton = (wrapper, text) => wrapper.findAll('button').wrappers.find((w) => w.text().includes(text))
 
@@ -183,6 +189,39 @@ describe('QuickEdit view', () => {
     wrapper.destroy()
   })
 
+  it('shows a parsed-goal confirmation and lets the user edit it through chat', async () => {
+    skillApi.chatClipping.mockResolvedValue(parsedGoalChatResponse)
+    const wrapper = shallowMount(QuickEdit, { mocks, stubs })
+    wrapper.vm.materialPaths = ['D:\\data\\探店.mp4']
+    wrapper.vm.chatContext = { step: 'collecting_materials', materials: ['D:\\data\\探店.mp4'], goal: null, planGenerated: null }
+    wrapper.vm.draft = '剪成 30 秒竖屏快节奏带字幕'
+
+    await wrapper.vm.send()
+
+    expect(wrapper.vm.chatConfirmation).toEqual(parsedGoalChatResponse.confirmation)
+    wrapper.vm.editParsedGoal()
+    expect(wrapper.vm.draft).toBe('请将剪辑需求修改为：')
+    wrapper.destroy()
+  })
+
+  it('confirms the parsed goal by directly creating a skill run', async () => {
+    skillApi.createSkillRun.mockResolvedValue(runningRun)
+    expertApi.getRunActions.mockResolvedValue({ events: [], actions: [pendingAction] })
+    const wrapper = shallowMount(QuickEdit, { mocks, stubs })
+    wrapper.vm.materialPaths = ['D:\\data\\探店.mp4']
+    wrapper.vm.chatContext = parsedGoalChatResponse.context
+    wrapper.vm.chatConfirmation = parsedGoalChatResponse.confirmation
+
+    wrapper.vm.confirmParsedGoal()
+    await flushPromises()
+
+    expect(skillApi.createSkillRun).toHaveBeenCalledWith(expect.objectContaining({
+      skillCode: 'quick-edit',
+      inputJson: '{"media_location":"D:\\\\data\\\\探店.mp4","instruction":"30 秒竖屏快节奏，添加字幕"}'
+    }))
+    wrapper.destroy()
+  })
+
   it('revises the plan with new instruction via reviseSkillRun', async () => {
     skillApi.reviseSkillRun.mockResolvedValue(runningRun)
     expertApi.getRunActions.mockResolvedValue({ events: [], actions: [pendingAction] })
@@ -197,6 +236,29 @@ describe('QuickEdit view', () => {
     await flushPromises()
 
     expect(skillApi.reviseSkillRun).toHaveBeenCalledWith({ runId: 55, instruction: '竖屏 60 秒', idempotencyKey: 'test-uuid-0001' })
+    expect(wrapper.vm.reviseDialogVisible).toBe(false)
+    wrapper.destroy()
+  })
+
+  it('creates a new run when revising a terminal failed run', async () => {
+    skillApi.createSkillRun.mockResolvedValue(runningRun)
+    skillApi.getClippingTask.mockResolvedValue({ id: 31, status: 'running', materials: ['D:\\data\\探店.mp4'], versionHistory: [] })
+    expertApi.getRunActions.mockResolvedValue({ events: [], actions: [pendingAction] })
+    const wrapper = shallowMount(QuickEdit, { mocks, stubs })
+    wrapper.vm.run = { ...completedRun, status: 'failed' }
+    wrapper.vm.clippingTask = { id: 31, status: 'failed' }
+    wrapper.vm.materialPaths = ['D:\\data\\探店.mp4']
+    wrapper.vm.reviseInstruction = '改成竖屏 30 秒'
+    wrapper.vm.reviseDialogVisible = true
+
+    await wrapper.vm.revisePlan()
+
+    expect(skillApi.reviseSkillRun).not.toHaveBeenCalled()
+    expect(skillApi.createSkillRun).toHaveBeenCalledWith(expect.objectContaining({
+      skillCode: 'quick-edit',
+      taskId: 31,
+      inputJson: '{"media_location":"D:\\\\data\\\\探店.mp4","instruction":"改成竖屏 30 秒"}'
+    }))
     expect(wrapper.vm.reviseDialogVisible).toBe(false)
     wrapper.destroy()
   })

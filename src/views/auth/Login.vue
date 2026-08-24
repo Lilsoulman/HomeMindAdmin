@@ -1,7 +1,7 @@
 <template>
   <section class="login-card">
     <div class="login-card__heading">
-      <p class="eyebrow">NexusMind</p>
+      <p class="eyebrow">HomeMind</p>
       <h2>登录控制台</h2>
       <p>使用你的家庭账户继续。</p>
     </div>
@@ -40,7 +40,7 @@ export default {
         this.errorMessage = ''
         try {
           await this.$store.dispatch('auth/signIn', this.form)
-          this.$router.replace(this.$route.query.redirect || '/app/overview').catch(() => {})
+          this.$router.replace(this.$route.query.redirect || '/app/dashboard').catch(() => {})
         } catch (error) {
           this.errorMessage = error.message || '登录失败，请检查账号和密码。'
         } finally {

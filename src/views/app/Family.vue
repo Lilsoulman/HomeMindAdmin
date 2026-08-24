@@ -93,7 +93,7 @@
     </el-tabs>
 
     <!-- 成员：新增/编辑 -->
-    <el-dialog :title="memberDialog.isEdit ? '编辑成员' : '新增成员'" :visible.sync="memberDialog.visible" width="460px" :close-on-click-modal="false">
+    <AppDialog v-model="memberDialog.visible" :title="memberDialog.isEdit ? '编辑成员' : '新增成员'" width="460px" :close-on-click-modal="false">
       <el-form label-width="86px" size="small">
         <el-form-item label="名称" required>
           <el-input v-model="memberDialog.name" maxlength="128" />
@@ -114,10 +114,10 @@
         <el-button size="small" @click="memberDialog.visible = false">取消</el-button>
         <el-button size="small" type="primary" :loading="memberDialog.submitting" :disabled="!memberDialog.name.trim() || !memberDialog.relation.trim()" @click="saveMember">保存</el-button>
       </span>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 成员：终态更正 -->
-    <el-dialog title="终态更正" :visible.sync="correctionDialog.visible" width="460px" :close-on-click-modal="false">
+    <AppDialog v-model="correctionDialog.visible" title="终态更正" width="460px" :close-on-click-modal="false">
       <p class="deny-dialog__hint">更正成员生命周期状态并写入审计；进入终态必须填写原因。</p>
       <el-form label-width="86px" size="small">
         <el-form-item label="目标状态">
@@ -139,10 +139,10 @@
           @click="submitCorrection"
         >确认更正</el-button>
       </span>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 知识：新增 -->
-    <el-dialog title="新增家庭知识" :visible.sync="knowledgeDialog.visible" width="480px" :close-on-click-modal="false">
+    <AppDialog v-model="knowledgeDialog.visible" title="新增家庭知识" width="480px" :close-on-click-modal="false">
       <el-form label-width="86px" size="small">
         <el-form-item label="分类" required>
           <el-select v-model="knowledgeDialog.category" style="width: 100%">
@@ -185,10 +185,10 @@
           @click="saveKnowledge"
         >保存</el-button>
       </span>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 决策：记录 -->
-    <el-dialog title="记录家庭决策" :visible.sync="decisionDialog.visible" width="480px" :close-on-click-modal="false">
+    <AppDialog v-model="decisionDialog.visible" title="记录家庭决策" width="480px" :close-on-click-modal="false">
       <el-form label-width="86px" size="small">
         <el-form-item label="场景" required>
           <el-input v-model="decisionDialog.scenario" maxlength="128" placeholder="例如：宽带续费方案" />
@@ -210,7 +210,7 @@
           @click="saveDecision"
         >记录</el-button>
       </span>
-    </el-dialog>
+    </AppDialog>
   </section>
 </template>
 
@@ -271,7 +271,7 @@ export default {
   created() {
     this.loadMembers()
   },
-  destroyed() {
+  unmounted() {
     this.pageAlive = false
   },
   methods: {

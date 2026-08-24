@@ -53,7 +53,7 @@
         </template>
       </section>
 
-      <el-dialog title="动态详情" :visible.sync="detailDialog.visible" width="520px">
+      <AppDialog v-model="detailDialog.visible" title="动态详情" width="520px">
         <div v-if="detailDialog.loading" class="overview-page__loading"><i class="el-icon-loading" /> 正在加载</div>
         <PageState v-else-if="detailDialog.error" type="error" title="详情暂不可用" :description="detailDialog.error.message" @retry="openDetail(detailDialog.item)" />
         <dl v-else-if="detailDialog.detail" class="activity-detail-dl">
@@ -76,7 +76,7 @@
           >查看运行详情</el-button>
           <el-button size="small" @click="detailDialog.visible = false">关闭</el-button>
         </span>
-      </el-dialog>
+      </AppDialog>
     </template>
   </section>
 </template>
@@ -129,7 +129,7 @@ export default {
   created() {
     this.load()
   },
-  destroyed() {
+  unmounted() {
     this.pageAlive = false
   },
   methods: {

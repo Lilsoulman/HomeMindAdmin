@@ -26,7 +26,7 @@ export default {
       .catch(() => {})
       .finally(finish)
   },
-  destroyed() {
+  unmounted() {
     this.pageAlive = false
   }
 }

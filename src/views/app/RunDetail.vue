@@ -111,7 +111,7 @@ export default {
   created() {
     this.load()
   },
-  destroyed() {
+  unmounted() {
     this.pageAlive = false
     this.stopPolling()
   },

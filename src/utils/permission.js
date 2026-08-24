@@ -5,11 +5,11 @@ const rolePermissions = {
     'identity.read', 'smart_home.read', 'family.read', 'family.write',
     'steward.activity.read', 'confirmation.read', 'confirmation.write',
     'life.favorite.read', 'life.favorite.write', 'connector.read', 'connector.authorize',
-    'automation.read', 'ai.read', 'ai.run', 'ai.skills.read', 'media.read', 'mindmap.read', 'expert.mine.write', 'memory.read', 'memory.write'
+    'automation.read', 'ai.read', 'ai.run', 'ai.skills.read', 'media.read', 'mindmap.read', 'expert.mine.write', 'memory.read', 'memory.write', 'finance.read', 'finance.write'
   ],
   viewer: [
     'identity.read', 'smart_home.read', 'family.read', 'steward.activity.read',
-    'confirmation.read', 'life.favorite.read', 'connector.read', 'automation.read', 'ai.read', 'ai.skills.read', 'memory.read'
+    'confirmation.read', 'life.favorite.read', 'connector.read', 'automation.read', 'ai.read', 'ai.skills.read', 'memory.read', 'finance.read', 'pet.read'
   ]
 }
 

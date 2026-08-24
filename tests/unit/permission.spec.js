@@ -2,10 +2,10 @@ import { hasAnyPermission, hasPermission } from '../../src/utils/permission'
 
 const viewerReadOnly = [
   'identity.read', 'smart_home.read', 'family.read', 'steward.activity.read',
-  'confirmation.read', 'life.favorite.read', 'connector.read', 'automation.read', 'ai.read'
+  'confirmation.read', 'life.favorite.read', 'connector.read', 'automation.read', 'ai.read', 'finance.read'
 ]
 
-const memberWrites = ['family.write', 'confirmation.write', 'life.favorite.write', 'ai.run', 'media.read', 'mindmap.read', 'expert.mine.write']
+const memberWrites = ['family.write', 'confirmation.write', 'life.favorite.write', 'ai.run', 'media.read', 'mindmap.read', 'expert.mine.write', 'finance.write']
 
 const adminOnlyWrites = [
   'connector.write', 'automation.write', 'tenant.member.manage',

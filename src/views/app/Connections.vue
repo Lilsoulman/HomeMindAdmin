@@ -36,7 +36,7 @@
         </ul>
       </section>
 
-      <el-dialog title="添加个人连接" :visible.sync="dialogVisible" width="520px" :close-on-click-modal="false">
+      <AppDialog v-model="dialogVisible" title="添加个人连接" width="520px" :close-on-click-modal="false">
         <div class="provider-grid">
           <button
             v-for="provider in providers"
@@ -55,9 +55,9 @@
           <el-button :disabled="submitting" @click="dialogVisible = false">取消</el-button>
           <el-button type="primary" :loading="submitting" :disabled="!selectedProvider" @click="confirmAdd">前往授权</el-button>
         </span>
-      </el-dialog>
+      </AppDialog>
 
-      <el-dialog title="扫码登录" :visible.sync="qrDialogVisible" width="420px" :close-on-click-modal="false" @close="stopQrPolling">
+      <AppDialog v-model="qrDialogVisible" title="扫码登录" width="420px" :close-on-click-modal="false" @close="stopQrPolling">
         <p class="qr-auth-hint">请在小红书 App 中扫描二维码完成登录。</p>
         <div class="qr-auth-body">
           <img v-if="qrDataUrl" :src="qrDataUrl" alt="登录二维码" class="qr-auth-qr">
@@ -65,7 +65,7 @@
           <p v-else class="qr-auth-placeholder">二维码生成失败，请关闭窗口后重新发起授权。</p>
         </div>
         <p v-if="qrPolling" class="qr-auth-status"><i class="el-icon-loading" /> 等待扫码登录…</p>
-      </el-dialog>
+      </AppDialog>
     </template>
   </section>
 </template>
@@ -112,7 +112,7 @@ export default {
   created() {
     this.load()
   },
-  destroyed() {
+  unmounted() {
     this.pageAlive = false
     this.stopQrPolling()
   },

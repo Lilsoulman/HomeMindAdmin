@@ -20,7 +20,7 @@ export default {
   data() { return { loading: true, loadingMore: false, error: null, items: [], cursor: null, pageAlive: true, filters: { scope: 'all', kind: '', status: '', query: '' } } },
   computed: { errorTitle() { return this.error && this.error.status === 403 ? '暂无学习记忆权限' : '学习记忆暂不可用' } },
   created() { this.load() },
-  destroyed() { this.pageAlive = false },
+  unmounted() { this.pageAlive = false },
   methods: {
     async load() { this.loading = true; this.error = null; this.items = []; this.cursor = null; try { await this.fetchPage(null) } catch (error) { if (this.pageAlive) this.error = error } finally { if (this.pageAlive) this.loading = false } },
     async fetchPage(cursor) { const page = await listLearningMemories({ ...this.filters, cursor }); if (!this.pageAlive) return; this.items = cursor ? this.items.concat(page.items) : page.items; this.cursor = page.cursor },
